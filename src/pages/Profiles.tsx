@@ -108,7 +108,7 @@ const Profiles = () => {
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.enrollmentNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBranch = !selectedBranch || student.branch === selectedBranch;
+    const matchesBranch = !selectedBranch || selectedBranch === "all" || student.branch === selectedBranch;
     return matchesSearch && matchesBranch;
   });
 
@@ -161,7 +161,7 @@ const Profiles = () => {
                   <SelectValue placeholder="Filter by branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Branches</SelectItem>
+                  <SelectItem value="all">All Branches</SelectItem>
                   {branches.map((branch) => (
                     <SelectItem key={branch} value={branch}>
                       {branch}
@@ -169,7 +169,7 @@ const Profiles = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {(searchTerm || selectedBranch) && (
+              {(searchTerm || (selectedBranch && selectedBranch !== "all")) && (
                 <Button
                   variant="outline"
                   onClick={() => {
