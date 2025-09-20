@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { StudentProfileModal } from "@/components/students/StudentProfileModal";
 import { toast } from "sonner";
+import { calculateDueDate, getDaysUntilDue, getFeeStatus } from "@/lib/dateUtils";
 
 const Profiles = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -131,12 +132,17 @@ const Profiles = () => {
   };
 
   const handleViewProfile = (student: any) => {
+    // Calculate due date and days until due based on registration date
+    const dueDate = calculateDueDate(student.registrationDate);
+    const daysUntilDue = getDaysUntilDue(dueDate);
+    
     // Transform student data to match modal format
     const modalStudent = {
       ...student,
       id: student.id.toString(), // Convert number to string
       fatherName: "N/A", // Add this field to your mock data if needed
-      daysUntilDue: student.feesStatus === "overdue" ? 0 : 30,
+      daysUntilDue,
+      dueDate,
       feesAmount: 2500,
       lastPaymentDate: student.lastPayment,
       photo: student.photo || "", // Ensure photo is not null
@@ -157,9 +163,17 @@ const Profiles = () => {
   const handleEditStudent = (editedStudent: any) => {
     setStudentsList(prev => 
       prev.map(student => 
-        student.id === editedStudent.id ? { ...student, ...editedStudent } : student
+        student.id.toString() === editedStudent.id ? { 
+          ...student, 
+          ...editedStudent,
+          id: parseInt(editedStudent.id), // Convert back to number for consistency
+          // Update fee status based on due date if needed
+          feesStatus: editedStudent.daysUntilDue < 0 ? "overdue" : 
+                     editedStudent.daysUntilDue <= 7 ? "pending" : student.feesStatus
+        } : student
       )
     );
+    toast.success("Student profile updated successfully!");
   };
 
   const handleDeleteStudent = (studentId: string) => {

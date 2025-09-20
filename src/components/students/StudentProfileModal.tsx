@@ -8,8 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Edit, Trash2, Phone, MessageCircle, Save, X, Calendar, User, Users, CreditCard } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Edit, Trash2, Phone, MessageCircle, Save, X, Calendar as CalendarIcon, User, Users, CreditCard } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { calculateDueDate, getDaysUntilDue } from "@/lib/dateUtils";
 
 interface Student {
   id: string;
@@ -24,6 +29,7 @@ interface Student {
   feesStatus: "paid" | "pending" | "overdue";
   feesAmount: number;
   daysUntilDue: number;
+  dueDate?: string;
   lastPaymentDate?: string;
   transactions: {
     id: string;
@@ -62,7 +68,17 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
 
   const handleSave = () => {
     if (editedStudent) {
-      onEdit(editedStudent);
+      // Recalculate due date and days until due when saving
+      const dueDate = calculateDueDate(editedStudent.registrationDate);
+      const daysUntilDue = getDaysUntilDue(dueDate);
+      
+      const updatedStudent = {
+        ...editedStudent,
+        dueDate,
+        daysUntilDue,
+      };
+      
+      onEdit(updatedStudent);
       setIsEditing(false);
       toast.success("Student profile updated successfully!");
     }
@@ -289,7 +305,59 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                 </div>
                 <div>
                   <Label>Registration Date</Label>
-                  <p className="font-medium">{new Date(student.registrationDate).toLocaleDateString()}</p>
+                  {isEditing ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !editedStudent.registrationDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {editedStudent.registrationDate ? format(new Date(editedStudent.registrationDate), "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={editedStudent.registrationDate ? new Date(editedStudent.registrationDate) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              setEditedStudent({ 
+                                ...editedStudent, 
+                                registrationDate: date.toISOString().split('T')[0] 
+                              });
+                            }
+                          }}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <p className="font-medium">{new Date(student.registrationDate).toLocaleDateString()}</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Due Date</Label>
+                  <p className="font-medium text-primary">
+                    {student.dueDate ? new Date(student.dueDate).toLocaleDateString() : 
+                     new Date(calculateDueDate(student.registrationDate)).toLocaleDateString()}
+                  </p>
+                </div>
+                <div>
+                  <Label>Fees Amount</Label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={editedStudent.feesAmount}
+                      onChange={(e) => setEditedStudent({ ...editedStudent, feesAmount: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <p className="font-medium">₹{student.feesAmount}</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
