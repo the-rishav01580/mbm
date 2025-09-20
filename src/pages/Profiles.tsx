@@ -16,13 +16,17 @@ import {
   GraduationCap,
   Calendar
 } from "lucide-react";
+import { StudentProfileModal } from "@/components/students/StudentProfileModal";
+import { toast } from "sonner";
 
 const Profiles = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Mock student data - will be replaced with Supabase data
-  const students = [
+  const initialStudents = [
     {
       id: 1,
       name: "Rajesh Kumar",
@@ -103,9 +107,10 @@ const Profiles = () => {
     },
   ];
 
+  const [studentsList, setStudentsList] = useState(initialStudents);
   const branches = ["Computer Science", "Electronics", "Mechanical", "Information Technology", "Civil Engineering", "Electrical Engineering"];
 
-  const filteredStudents = students.filter(student => {
+  const filteredStudents = studentsList.filter(student => {
     const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          student.enrollmentNumber.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesBranch = !selectedBranch || selectedBranch === "all" || student.branch === selectedBranch;
@@ -123,6 +128,40 @@ const Profiles = () => {
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const handleViewProfile = (student: any) => {
+    // Transform student data to match modal format
+    const modalStudent = {
+      ...student,
+      fatherName: "N/A", // Add this field to your mock data if needed
+      daysUntilDue: student.feesStatus === "overdue" ? 0 : 30,
+      feesAmount: 2500,
+      lastPaymentDate: student.lastPayment,
+      transactions: [
+        {
+          id: "1",
+          date: student.lastPayment,
+          amount: student.totalPaid,
+          type: "cash" as const,
+          status: "completed" as const
+        }
+      ]
+    };
+    setSelectedStudent(modalStudent);
+    setIsProfileModalOpen(true);
+  };
+
+  const handleEditStudent = (editedStudent: any) => {
+    setStudentsList(prev => 
+      prev.map(student => 
+        student.id === editedStudent.id ? { ...student, ...editedStudent } : student
+      )
+    );
+  };
+
+  const handleDeleteStudent = (studentId: string) => {
+    setStudentsList(prev => prev.filter(student => student.id.toString() !== studentId));
   };
 
   return (
@@ -188,7 +227,7 @@ const Profiles = () => {
       {/* Results Count */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Showing {filteredStudents.length} of {students.length} students
+          Showing {filteredStudents.length} of {studentsList.length} students
         </p>
       </div>
 
@@ -245,7 +284,12 @@ const Profiles = () => {
                 </div>
                 
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => handleViewProfile(student)}
+                  >
                     <Eye className="w-3 h-3 mr-1" />
                     View
                   </Button>
@@ -294,6 +338,15 @@ const Profiles = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Student Profile Modal */}
+      <StudentProfileModal
+        student={selectedStudent}
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onEdit={handleEditStudent}
+        onDelete={handleDeleteStudent}
+      />
     </div>
   );
 };
