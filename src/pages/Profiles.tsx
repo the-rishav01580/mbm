@@ -134,10 +134,12 @@ const Profiles = () => {
     // Transform student data to match modal format
     const modalStudent = {
       ...student,
+      id: student.id.toString(), // Convert number to string
       fatherName: "N/A", // Add this field to your mock data if needed
       daysUntilDue: student.feesStatus === "overdue" ? 0 : 30,
       feesAmount: 2500,
       lastPaymentDate: student.lastPayment,
+      photo: student.photo || "", // Ensure photo is not null
       transactions: [
         {
           id: "1",
