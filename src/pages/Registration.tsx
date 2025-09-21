@@ -17,12 +17,20 @@ import {
   Phone, 
   GraduationCap,
   Save,
-  X
+  X,
+  Loader2
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const Registration = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [registrationDate, setRegistrationDate] = useState<Date>();
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     phone: "",
@@ -33,14 +41,11 @@ const Registration = () => {
   });
 
   const branches = [
-    "Computer Science Engineering",
-    "Electronics and Communication",
-    "Mechanical Engineering", 
-    "Civil Engineering",
-    "Electrical Engineering",
-    "Information Technology",
-    "Chemical Engineering",
-    "Biotechnology"
+    "Computer Science",
+    "Electronics",
+    "Mechanical", 
+    "Civil",
+    "Electrical"
   ];
 
   const handleInputChange = (field: string, value: string) => {
@@ -50,6 +55,7 @@ const Registration = () => {
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      setPhotoFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
         setPhotoPreview(e.target?.result as string);
@@ -58,10 +64,112 @@ const Registration = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // This will be connected to Supabase later
-    console.log("Form submitted:", { ...formData, registrationDate, photo: photoPreview });
+    
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to register students",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!registrationDate) {
+      toast({
+        title: "Error",
+        description: "Please select a registration date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      let photoUrl = null;
+
+      // Upload photo if provided
+      if (photoFile) {
+        const fileExt = photoFile.name.split('.').pop();
+        const fileName = `${formData.enrollmentNumber}_${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('student-photos')
+          .upload(fileName, photoFile);
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('student-photos')
+          .getPublicUrl(fileName);
+
+        photoUrl = publicUrl;
+      }
+
+      // Insert student data
+      const { error: insertError } = await supabase
+        .from('students')
+        .insert({
+          enrollment_number: formData.enrollmentNumber,
+          name: formData.fullName,
+          phone: formData.phone,
+          father_name: formData.fatherName,
+          father_phone: formData.fatherPhone,
+          branch: formData.branch as any,
+          registration_date: registrationDate.toISOString().split('T')[0],
+          photo_url: photoUrl,
+          created_by: user.id,
+        });
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      toast({
+        title: "Success",
+        description: "Student registered successfully!",
+      });
+
+      // Clear form
+      setFormData({
+        fullName: "",
+        phone: "",
+        fatherName: "",
+        fatherPhone: "",
+        branch: "",
+        enrollmentNumber: "",
+      });
+      setRegistrationDate(undefined);
+      setPhotoPreview(null);
+      setPhotoFile(null);
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to register student",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClearForm = () => {
+    setFormData({
+      fullName: "",
+      phone: "",
+      fatherName: "",
+      fatherPhone: "",
+      branch: "",
+      enrollmentNumber: "",
+    });
+    setRegistrationDate(undefined);
+    setPhotoPreview(null);
+    setPhotoFile(null);
   };
 
   return (
@@ -236,7 +344,10 @@ const Registration = () => {
                       variant="destructive"
                       size="icon"
                       className="absolute top-2 right-2 w-6 h-6"
-                      onClick={() => setPhotoPreview(null)}
+                      onClick={() => {
+                        setPhotoPreview(null);
+                        setPhotoFile(null);
+                      }}
                     >
                       <X className="w-4 h-4" />
                     </Button>
@@ -275,7 +386,10 @@ const Registration = () => {
                     size="sm"
                     onClick={() => {
                       // Camera functionality will be implemented later
-                      console.log("Camera functionality");
+                      toast({
+                        title: "Info",
+                        description: "Camera functionality coming soon!",
+                      });
                     }}
                   >
                     <Camera className="w-4 h-4 mr-2" />
@@ -289,11 +403,18 @@ const Registration = () => {
             <Card className="shadow-card bg-gradient-card">
               <CardContent className="pt-6">
                 <div className="space-y-4">
-                  <Button type="submit" className="w-full" size="lg">
+                  <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     <Save className="w-4 h-4 mr-2" />
                     Register Student
                   </Button>
-                  <Button type="button" variant="outline" className="w-full">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleClearForm}
+                    disabled={isSubmitting}
+                  >
                     Clear Form
                   </Button>
                 </div>
@@ -302,23 +423,6 @@ const Registration = () => {
           </div>
         </div>
       </form>
-
-      {/* Note about backend */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <Phone className="w-4 h-4 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-medium text-blue-900">Ready to save data?</h3>
-              <p className="text-sm text-blue-700 mt-1">
-                Connect to Supabase to store student registrations, handle file uploads, and enable all backend functionality.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

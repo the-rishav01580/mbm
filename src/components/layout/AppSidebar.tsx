@@ -9,7 +9,10 @@ import {
   Menu,
   X,
   GraduationCap,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 
 import {
   Sidebar,
@@ -55,8 +58,13 @@ const navigationItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
+  const { signOut, user } = useAuth();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   const isActive = (path: string) => currentPath === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
@@ -109,23 +117,38 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* Admin Info */}
-        {!collapsed && (
-          <div className="mt-auto px-4 py-4 border-t border-sidebar-border">
+        <div className="mt-auto px-4 py-4 border-t border-sidebar-border space-y-4">
+          {!collapsed && (
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">A</span>
+                <span className="text-white text-sm font-medium">
+                  {user?.email?.charAt(0).toUpperCase() || 'A'}
+                </span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-sidebar-foreground truncate">
                   Admin User
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
-                  admin@messmanager.com
+                  {user?.email || 'admin@messmanager.com'}
                 </p>
               </div>
             </div>
-          </div>
-        )}
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSignOut}
+            className={cn(
+              "w-full justify-start gap-2 text-muted-foreground hover:text-foreground",
+              collapsed && "justify-center"
+            )}
+            title={collapsed ? "Sign Out" : undefined}
+          >
+            <LogOut className="h-4 w-4" />
+            {!collapsed && "Sign Out"}
+          </Button>
+        </div>
       </SidebarContent>
     </Sidebar>
   );

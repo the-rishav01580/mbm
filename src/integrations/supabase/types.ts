@@ -14,7 +14,87 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      students: {
+        Row: {
+          branch: Database["public"]["Enums"]["branch_type"]
+          created_at: string
+          created_by: string | null
+          enrollment_number: string
+          father_name: string
+          father_phone: string
+          fees_due: number | null
+          fees_paid: number | null
+          id: string
+          name: string
+          phone: string
+          photo_url: string | null
+          registration_date: string
+          status: Database["public"]["Enums"]["student_status"]
+          updated_at: string
+        }
+        Insert: {
+          branch: Database["public"]["Enums"]["branch_type"]
+          created_at?: string
+          created_by?: string | null
+          enrollment_number: string
+          father_name: string
+          father_phone: string
+          fees_due?: number | null
+          fees_paid?: number | null
+          id?: string
+          name: string
+          phone: string
+          photo_url?: string | null
+          registration_date: string
+          status?: Database["public"]["Enums"]["student_status"]
+          updated_at?: string
+        }
+        Update: {
+          branch?: Database["public"]["Enums"]["branch_type"]
+          created_at?: string
+          created_by?: string | null
+          enrollment_number?: string
+          father_name?: string
+          father_phone?: string
+          fees_due?: number | null
+          fees_paid?: number | null
+          id?: string
+          name?: string
+          phone?: string
+          photo_url?: string | null
+          registration_date?: string
+          status?: Database["public"]["Enums"]["student_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +103,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      branch_type:
+        | "Computer Science"
+        | "Electronics"
+        | "Mechanical"
+        | "Civil"
+        | "Electrical"
+      student_status: "active" | "inactive" | "fees_due" | "graduated"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +236,15 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      branch_type: [
+        "Computer Science",
+        "Electronics",
+        "Mechanical",
+        "Civil",
+        "Electrical",
+      ],
+      student_status: ["active", "inactive", "fees_due", "graduated"],
+    },
   },
 } as const
