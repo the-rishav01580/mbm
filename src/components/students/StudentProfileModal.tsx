@@ -117,31 +117,31 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[95vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Student Profile</span>
-            <div className="flex gap-2">
+          <DialogTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <span className="text-lg sm:text-xl">Student Profile</span>
+            <div className="flex gap-2 flex-wrap">
               {!isEditing ? (
                 <>
-                  <Button variant="outline" size="sm" onClick={handleEdit}>
+                  <Button variant="outline" size="sm" onClick={handleEdit} className="flex-1 sm:flex-none">
                     <Edit className="h-4 w-4 mr-1" />
-                    Edit
+                    <span className="hidden xs:inline">Edit</span>
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={handleDelete}>
+                  <Button variant="destructive" size="sm" onClick={handleDelete} className="flex-1 sm:flex-none">
                     <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
+                    <span className="hidden xs:inline">Delete</span>
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="outline" size="sm" onClick={handleCancel}>
+                  <Button variant="outline" size="sm" onClick={handleCancel} className="flex-1 sm:flex-none">
                     <X className="h-4 w-4 mr-1" />
-                    Cancel
+                    <span className="hidden xs:inline">Cancel</span>
                   </Button>
-                  <Button size="sm" onClick={handleSave}>
+                  <Button size="sm" onClick={handleSave} className="flex-1 sm:flex-none">
                     <Save className="h-4 w-4 mr-1" />
-                    Save
+                    <span className="hidden xs:inline">Save</span>
                   </Button>
                 </>
               )}
@@ -149,28 +149,28 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Left Column - Basic Info */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5" />
                   Personal Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-20 w-20">
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20 self-center sm:self-start">
                     <AvatarImage src={student.photo} alt={student.name} />
                     <AvatarFallback className="text-lg">{student.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="flex-1 w-full sm:w-auto text-center sm:text-left">
                     {isEditing ? (
                       <Input
                         value={editedStudent.name}
                         onChange={(e) => setEditedStudent({ ...editedStudent, name: e.target.value })}
-                        className="text-lg font-semibold"
+                        className="text-lg font-semibold mb-2"
                       />
                     ) : (
                       <h3 className="text-lg font-semibold">{student.name}</h3>
@@ -179,7 +179,7 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Phone Number</Label>
                     {isEditing ? (
@@ -237,12 +237,12 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
 
                 <Separator />
 
-                <div className="flex gap-4">
-                  <Button onClick={handleCall} className="flex-1">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                  <Button onClick={handleCall} className="flex-1 h-11">
                     <Phone className="h-4 w-4 mr-2" />
                     Call Student
                   </Button>
-                  <Button onClick={handleWhatsApp} variant="outline" className="flex-1">
+                  <Button onClick={handleWhatsApp} variant="outline" className="flex-1 h-11">
                     <MessageCircle className="h-4 w-4 mr-2" />
                     WhatsApp
                   </Button>
@@ -252,46 +252,46 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
 
             {/* Transaction History */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
                   Payment History
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6 pt-0">
                 {student.transactions.length > 0 ? (
                   <div className="space-y-3">
                     {student.transactions.map((transaction) => (
                       <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg border">
-                        <div>
-                          <p className="font-medium">₹{transaction.amount}</p>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm sm:text-base">₹{transaction.amount}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">
                             {new Date(transaction.date).toLocaleDateString()} • {transaction.type}
                           </p>
                         </div>
-                        <Badge variant={transaction.status === "completed" ? "default" : "secondary"}>
+                        <Badge variant={transaction.status === "completed" ? "default" : "secondary"} className="ml-2 flex-shrink-0">
                           {transaction.status}
                         </Badge>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center py-4">No payment history available</p>
+                  <p className="text-muted-foreground text-center py-6 text-sm">No payment history available</p>
                 )}
               </CardContent>
             </Card>
           </div>
 
           {/* Right Column - Status & Actions */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   Registration Info
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
                 <div>
                   <Label>Enrollment Number</Label>
                   {isEditing ? (
@@ -363,30 +363,30 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Fees Status</CardTitle>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-base sm:text-lg">Fees Status</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
                 <div className="flex items-center justify-between">
-                  <span>Status</span>
+                  <span className="text-sm sm:text-base">Status</span>
                   <Badge className={getStatusBadge(student.feesStatus)}>
                     {student.feesStatus}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Amount Due</span>
-                  <span className="font-semibold">₹{student.feesAmount}</span>
+                  <span className="text-sm sm:text-base">Amount Due</span>
+                  <span className="font-semibold text-sm sm:text-base">₹{student.feesAmount}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Days Until Due</span>
-                  <span className={`font-semibold ${student.daysUntilDue <= 3 ? 'text-red-600' : student.daysUntilDue <= 7 ? 'text-amber-600' : 'text-green-600'}`}>
+                  <span className="text-sm sm:text-base">Days Until Due</span>
+                  <span className={`font-semibold text-sm sm:text-base ${student.daysUntilDue <= 3 ? 'text-red-600' : student.daysUntilDue <= 7 ? 'text-amber-600' : 'text-green-600'}`}>
                     {student.daysUntilDue} days
                   </span>
                 </div>
                 {student.lastPaymentDate && (
                   <div className="flex items-center justify-between">
-                    <span>Last Payment</span>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm sm:text-base">Last Payment</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">
                       {new Date(student.lastPaymentDate).toLocaleDateString()}
                     </span>
                   </div>

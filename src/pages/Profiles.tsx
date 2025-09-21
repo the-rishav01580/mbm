@@ -198,20 +198,20 @@ const Profiles = () => {
 
       {/* Filters */}
       <Card className="shadow-card bg-gradient-card">
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name or enrollment number..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-11 text-base"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48 h-11">
                   <Filter className="w-4 h-4 mr-2" />
                   <SelectValue placeholder="Filter by branch" />
                 </SelectTrigger>
@@ -227,6 +227,7 @@ const Profiles = () => {
               {(searchTerm || (selectedBranch && selectedBranch !== "all")) && (
                 <Button
                   variant="outline"
+                  className="h-11 sm:w-auto"
                   onClick={() => {
                     setSearchTerm("");
                     setSelectedBranch("");
@@ -248,44 +249,46 @@ const Profiles = () => {
       </div>
 
       {/* Students Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {filteredStudents.map((student) => (
           <Card key={student.id} className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium">
+            <CardHeader className="p-4 pb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-medium text-sm sm:text-base">
                       {student.name.split(' ').map(n => n[0]).join('')}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg font-semibold truncate">
+                    <CardTitle className="text-base sm:text-lg font-semibold truncate">
                       {student.name}
                     </CardTitle>
-                    <CardDescription className="text-sm">
+                    <CardDescription className="text-xs sm:text-sm">
                       {student.enrollmentNumber}
                     </CardDescription>
                   </div>
                 </div>
-                {getStatusBadge(student.feesStatus)}
+                <div className="flex-shrink-0">
+                  {getStatusBadge(student.feesStatus)}
+                </div>
               </div>
             </CardHeader>
             
-            <CardContent className="space-y-4">
-              <div className="space-y-2 text-sm">
+            <CardContent className="p-4 pt-0 space-y-4">
+              <div className="space-y-2 text-xs sm:text-sm">
                 <div className="flex items-center gap-2">
-                  <GraduationCap className="w-4 h-4 text-muted-foreground" />
+                  <GraduationCap className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-muted-foreground">Branch:</span>
-                  <span className="font-medium">{student.branch}</span>
+                  <span className="font-medium truncate">{student.branch}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-muted-foreground" />
+                  <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-muted-foreground">Phone:</span>
                   <span className="font-medium">{student.phone}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-muted-foreground">Joined:</span>
                   <span className="font-medium">
                     {new Date(student.registrationDate).toLocaleDateString('en-IN')}
@@ -293,8 +296,8 @@ const Profiles = () => {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-border">
-                <div className="flex items-center justify-between text-sm mb-3">
+              <div className="pt-3 border-t border-border">
+                <div className="flex items-center justify-between text-xs sm:text-sm mb-3">
                   <span className="text-muted-foreground">Total Paid:</span>
                   <span className="font-semibold text-foreground">₹{student.totalPaid.toLocaleString('en-IN')}</span>
                 </div>
@@ -303,15 +306,16 @@ const Profiles = () => {
                   <Button 
                     size="sm" 
                     variant="outline" 
-                    className="flex-1"
+                    className="flex-1 h-9 text-xs sm:text-sm"
                     onClick={() => handleViewProfile(student)}
                   >
                     <Eye className="w-3 h-3 mr-1" />
-                    View
+                    <span className="hidden xs:inline">View</span>
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-9 px-3"
                     onClick={() => window.open(`tel:${student.phone}`)}
                   >
                     <Phone className="w-3 h-3" />
@@ -319,6 +323,7 @@ const Profiles = () => {
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-9 px-3"
                     onClick={() => 
                       window.open(
                         `https://wa.me/${student.phone.replace(/[^0-9]/g, '')}?text=Hi ${student.name}, this is a message from the mess management.`
