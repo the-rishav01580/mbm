@@ -18,11 +18,20 @@ import {
   GraduationCap,
   Save,
   X,
-  Loader2
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  validatePhone, 
+  validateName, 
+  validateEnrollmentNumber, 
+  validateFile,
+  sanitizeInput,
+  formatPhone
+} from "@/lib/validation";
 
 const Registration = () => {
   const { user } = useAuth();
@@ -39,6 +48,7 @@ const Registration = () => {
     branch: "",
     enrollmentNumber: "",
   });
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   const branches = [
     "Computer Science",
@@ -49,19 +59,74 @@ const Registration = () => {
   ];
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    const sanitizedValue = sanitizeInput(value);
+    setFormData(prev => ({ ...prev, [field]: sanitizedValue }));
+    
+    // Clear validation error when user starts typing
+    if (validationErrors[field]) {
+      setValidationErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    
+    // Real-time validation for phone numbers
+    if (field === 'phone' || field === 'fatherPhone') {
+      const phoneValidation = validatePhone(sanitizedValue);
+      if (!phoneValidation.isValid && sanitizedValue.length > 3) {
+        setValidationErrors(prev => ({ ...prev, [field]: phoneValidation.error || '' }));
+      }
+    }
   };
 
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      const fileValidation = validateFile(file);
+      if (!fileValidation.isValid) {
+        toast({
+          title: "Invalid File",
+          description: fileValidation.error,
+          variant: "destructive",
+        });
+        // Clear the file input
+        event.target.value = '';
+        return;
+      }
+      
       setPhotoFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
         setPhotoPreview(e.target?.result as string);
       };
       reader.readAsDataURL(file);
+      
+      // Clear any previous validation errors
+      setValidationErrors(prev => ({ ...prev, photo: '' }));
     }
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    // Validate all fields
+    const nameValidation = validateName(formData.fullName, 'Full name');
+    if (!nameValidation.isValid) errors.fullName = nameValidation.error!;
+    
+    const phoneValidation = validatePhone(formData.phone);
+    if (!phoneValidation.isValid) errors.phone = phoneValidation.error!;
+    
+    const fatherNameValidation = validateName(formData.fatherName, "Father's name");
+    if (!fatherNameValidation.isValid) errors.fatherName = fatherNameValidation.error!;
+    
+    const fatherPhoneValidation = validatePhone(formData.fatherPhone);
+    if (!fatherPhoneValidation.isValid) errors.fatherPhone = fatherPhoneValidation.error!;
+    
+    const enrollmentValidation = validateEnrollmentNumber(formData.enrollmentNumber);
+    if (!enrollmentValidation.isValid) errors.enrollmentNumber = enrollmentValidation.error!;
+    
+    if (!formData.branch) errors.branch = 'Branch is required';
+    if (!registrationDate) errors.registrationDate = 'Registration date is required';
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,10 +141,11 @@ const Registration = () => {
       return;
     }
 
-    if (!registrationDate) {
+    // Validate form
+    if (!validateForm()) {
       toast({
-        title: "Error",
-        description: "Please select a registration date",
+        title: "Validation Error",
+        description: "Please fix the errors in the form before submitting",
         variant: "destructive",
       });
       return;
@@ -146,6 +212,7 @@ const Registration = () => {
       setRegistrationDate(undefined);
       setPhotoPreview(null);
       setPhotoFile(null);
+      setValidationErrors({});
 
     } catch (error: any) {
       toast({
@@ -170,6 +237,7 @@ const Registration = () => {
     setRegistrationDate(undefined);
     setPhotoPreview(null);
     setPhotoFile(null);
+    setValidationErrors({});
   };
 
   return (
@@ -206,8 +274,15 @@ const Registration = () => {
                       placeholder="Enter student's full name"
                       value={formData.fullName}
                       onChange={(e) => handleInputChange("fullName", e.target.value)}
+                      className={validationErrors.fullName ? "border-destructive" : ""}
                       required
                     />
+                    {validationErrors.fullName && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.fullName}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
@@ -216,8 +291,15 @@ const Registration = () => {
                       placeholder="+91 98765 43210"
                       value={formData.phone}
                       onChange={(e) => handleInputChange("phone", e.target.value)}
+                      className={validationErrors.phone ? "border-destructive" : ""}
                       required
                     />
+                    {validationErrors.phone && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.phone}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -229,8 +311,15 @@ const Registration = () => {
                       placeholder="Enter father's full name"
                       value={formData.fatherName}
                       onChange={(e) => handleInputChange("fatherName", e.target.value)}
+                      className={validationErrors.fatherName ? "border-destructive" : ""}
                       required
                     />
+                    {validationErrors.fatherName && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.fatherName}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="fatherPhone">Father's Phone Number *</Label>
@@ -239,8 +328,15 @@ const Registration = () => {
                       placeholder="+91 98765 43210"
                       value={formData.fatherPhone}
                       onChange={(e) => handleInputChange("fatherPhone", e.target.value)}
+                      className={validationErrors.fatherPhone ? "border-destructive" : ""}
                       required
                     />
+                    {validationErrors.fatherPhone && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.fatherPhone}
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -265,7 +361,7 @@ const Registration = () => {
                       value={formData.branch} 
                       onValueChange={(value) => handleInputChange("branch", value)}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={validationErrors.branch ? "border-destructive" : ""}>
                         <SelectValue placeholder="Select branch" />
                       </SelectTrigger>
                       <SelectContent>
@@ -276,6 +372,12 @@ const Registration = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {validationErrors.branch && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.branch}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="enrollmentNumber">Enrollment Number *</Label>
@@ -283,9 +385,16 @@ const Registration = () => {
                       id="enrollmentNumber"
                       placeholder="e.g., 20CS001"
                       value={formData.enrollmentNumber}
-                      onChange={(e) => handleInputChange("enrollmentNumber", e.target.value)}
+                      onChange={(e) => handleInputChange("enrollmentNumber", e.target.value.toUpperCase())}
+                      className={validationErrors.enrollmentNumber ? "border-destructive" : ""}
                       required
                     />
+                    {validationErrors.enrollmentNumber && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.enrollmentNumber}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -297,7 +406,8 @@ const Registration = () => {
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !registrationDate && "text-muted-foreground"
+                          !registrationDate && "text-muted-foreground",
+                          validationErrors.registrationDate && "border-destructive"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
@@ -314,6 +424,12 @@ const Registration = () => {
                       />
                     </PopoverContent>
                   </Popover>
+                  {validationErrors.registrationDate && (
+                    <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {validationErrors.registrationDate}
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -358,7 +474,7 @@ const Registration = () => {
                     <div>
                       <p className="text-sm font-medium">Upload student photo</p>
                       <p className="text-xs text-muted-foreground">
-                        JPG, PNG up to 5MB
+                        JPG, PNG, WebP up to 5MB
                       </p>
                     </div>
                   </div>

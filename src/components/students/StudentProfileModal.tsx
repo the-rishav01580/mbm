@@ -10,11 +10,12 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Edit, Trash2, Phone, MessageCircle, Save, X, Calendar as CalendarIcon, User, Users, CreditCard } from "lucide-react";
+import { Edit, Trash2, Phone, MessageCircle, Save, X, Calendar as CalendarIcon, User, Users, CreditCard, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { calculateDueDate, getDaysUntilDue } from "@/lib/dateUtils";
+import { validatePhone, validateName, validateEnrollmentNumber, sanitizeInput } from "@/lib/validation";
 
 interface Student {
   id: string;
@@ -53,6 +54,7 @@ const branches = ["Computer Science", "Electronics", "Mechanical", "Civil", "Ele
 export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete }: StudentProfileModalProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedStudent, setEditedStudent] = useState<Student | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   React.useEffect(() => {
     if (student) {
@@ -64,9 +66,42 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
 
   const handleEdit = () => {
     setIsEditing(true);
+    setValidationErrors({});
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    if (editedStudent) {
+      const nameValidation = validateName(editedStudent.name, 'Student name');
+      if (!nameValidation.isValid) errors.name = nameValidation.error!;
+      
+      const phoneValidation = validatePhone(editedStudent.phone);
+      if (!phoneValidation.isValid) errors.phone = phoneValidation.error!;
+      
+      const fatherNameValidation = validateName(editedStudent.fatherName, "Father's name");
+      if (!fatherNameValidation.isValid) errors.fatherName = fatherNameValidation.error!;
+      
+      const fatherPhoneValidation = validatePhone(editedStudent.fatherPhone);
+      if (!fatherPhoneValidation.isValid) errors.fatherPhone = fatherPhoneValidation.error!;
+      
+      const enrollmentValidation = validateEnrollmentNumber(editedStudent.enrollmentNumber);
+      if (!enrollmentValidation.isValid) errors.enrollmentNumber = enrollmentValidation.error!;
+      
+      if (!editedStudent.branch) errors.branch = 'Branch is required';
+      if (editedStudent.feesAmount < 0) errors.feesAmount = 'Fees amount cannot be negative';
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSave = () => {
+    if (!validateForm()) {
+      toast.error("Please fix the validation errors before saving");
+      return;
+    }
+    
     if (editedStudent) {
       // Recalculate due date and days until due when saving
       const dueDate = calculateDueDate(editedStudent.registrationDate);
@@ -87,6 +122,7 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
   const handleCancel = () => {
     setEditedStudent({ ...student });
     setIsEditing(false);
+    setValidationErrors({});
   };
 
   const handleDelete = () => {
@@ -106,7 +142,17 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
     window.open(`https://wa.me/${student.phone}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
-  const getStatusBadge = (status: string) => {
+  const handleInputChange = (field: keyof Student, value: string | number) => {
+    if (editedStudent) {
+      const sanitizedValue = typeof value === 'string' ? sanitizeInput(value) : value;
+      setEditedStudent({ ...editedStudent, [field]: sanitizedValue });
+      
+      // Clear validation error when user starts typing
+      if (validationErrors[field]) {
+        setValidationErrors(prev => ({ ...prev, [field]: '' }));
+      }
+    }
+  };
     const variants = {
       paid: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
       pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
@@ -169,11 +215,17 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                     {isEditing ? (
                       <Input
                         value={editedStudent.name}
-                        onChange={(e) => setEditedStudent({ ...editedStudent, name: e.target.value })}
-                        className="text-lg font-semibold mb-2"
+                        onChange={(e) => handleInputChange('name', e.target.value)}
+                        className={cn("text-lg font-semibold mb-2", validationErrors.name && "border-destructive")}
                       />
                     ) : (
                       <h3 className="text-lg font-semibold">{student.name}</h3>
+                    )}
+                    {validationErrors.name && (
+                      <p className="text-sm text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.name}
+                      </p>
                     )}
                     <p className="text-muted-foreground">{student.enrollmentNumber}</p>
                   </div>
@@ -185,10 +237,17 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                     {isEditing ? (
                       <Input
                         value={editedStudent.phone}
-                        onChange={(e) => setEditedStudent({ ...editedStudent, phone: e.target.value })}
+                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                        className={validationErrors.phone ? "border-destructive" : ""}
                       />
                     ) : (
                       <p className="font-medium">{student.phone}</p>
+                    )}
+                    {validationErrors.phone && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.phone}
+                      </p>
                     )}
                   </div>
                   <div>
@@ -196,9 +255,9 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                     {isEditing ? (
                       <Select
                         value={editedStudent.branch}
-                        onValueChange={(value) => setEditedStudent({ ...editedStudent, branch: value })}
+                        onValueChange={(value) => handleInputChange('branch', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={validationErrors.branch ? "border-destructive" : ""}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -210,16 +269,29 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                     ) : (
                       <p className="font-medium">{student.branch}</p>
                     )}
+                    {validationErrors.branch && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.branch}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label>Father's Name</Label>
                     {isEditing ? (
                       <Input
                         value={editedStudent.fatherName}
-                        onChange={(e) => setEditedStudent({ ...editedStudent, fatherName: e.target.value })}
+                        onChange={(e) => handleInputChange('fatherName', e.target.value)}
+                        className={validationErrors.fatherName ? "border-destructive" : ""}
                       />
                     ) : (
                       <p className="font-medium">{student.fatherName}</p>
+                    )}
+                    {validationErrors.fatherName && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.fatherName}
+                      </p>
                     )}
                   </div>
                   <div>
@@ -227,10 +299,17 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                     {isEditing ? (
                       <Input
                         value={editedStudent.fatherPhone}
-                        onChange={(e) => setEditedStudent({ ...editedStudent, fatherPhone: e.target.value })}
+                        onChange={(e) => handleInputChange('fatherPhone', e.target.value)}
+                        className={validationErrors.fatherPhone ? "border-destructive" : ""}
                       />
                     ) : (
                       <p className="font-medium">{student.fatherPhone}</p>
+                    )}
+                    {validationErrors.fatherPhone && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {validationErrors.fatherPhone}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -297,10 +376,17 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                   {isEditing ? (
                     <Input
                       value={editedStudent.enrollmentNumber}
-                      onChange={(e) => setEditedStudent({ ...editedStudent, enrollmentNumber: e.target.value })}
+                      onChange={(e) => handleInputChange('enrollmentNumber', e.target.value.toUpperCase())}
+                      className={validationErrors.enrollmentNumber ? "border-destructive" : ""}
                     />
                   ) : (
                     <p className="font-medium">{student.enrollmentNumber}</p>
+                  )}
+                  {validationErrors.enrollmentNumber && (
+                    <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {validationErrors.enrollmentNumber}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -329,6 +415,10 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                                 ...editedStudent, 
                                 registrationDate: date.toISOString().split('T')[0] 
                               });
+                              // Clear validation error
+                              if (validationErrors.registrationDate) {
+                                setValidationErrors(prev => ({ ...prev, registrationDate: '' }));
+                              }
                             }
                           }}
                           initialFocus
@@ -352,11 +442,20 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                   {isEditing ? (
                     <Input
                       type="number"
+                      min="0"
+                      step="0.01"
                       value={editedStudent.feesAmount}
-                      onChange={(e) => setEditedStudent({ ...editedStudent, feesAmount: Number(e.target.value) })}
+                      onChange={(e) => handleInputChange('feesAmount', Number(e.target.value))}
+                      className={validationErrors.feesAmount ? "border-destructive" : ""}
                     />
                   ) : (
                     <p className="font-medium">₹{student.feesAmount}</p>
+                  )}
+                  {validationErrors.feesAmount && (
+                    <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                      <AlertCircle className="h-4 w-4" />
+                      {validationErrors.feesAmount}
+                    </p>
                   )}
                 </div>
               </CardContent>
