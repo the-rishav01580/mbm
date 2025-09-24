@@ -153,6 +153,8 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
       }
     }
   };
+
+  const getStatusBadge = (status: string) => {
     const variants = {
       paid: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
       pending: "bg-amber-500/10 text-amber-600 border-amber-500/20",
