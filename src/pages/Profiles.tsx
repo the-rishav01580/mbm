@@ -19,10 +19,12 @@ import {
   Plus
 } from "lucide-react";
 import { StudentProfileModal } from "@/components/students/StudentProfileModal";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { calculateDueDate } from "@/lib/dateUtils";
 
 interface Student {
   id: string;
@@ -50,6 +52,8 @@ const Profiles = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [studentsList, setStudentsList] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const branches = ["Computer Science", "Electronics", "Mechanical", "Civil", "Electrical"];
 
@@ -176,6 +180,19 @@ const Profiles = () => {
     }
   };
 
+  const getDaysToDue = (registrationDate: string) => {
+    try {
+      const dueDateStr = calculateDueDate(registrationDate);
+      const dueDate = new Date(dueDateStr);
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const msPerDay = 1000 * 60 * 60 * 24;
+      return Math.ceil((dueDate.getTime() - startOfToday.getTime()) / msPerDay);
+    } catch {
+      return 0;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -263,7 +280,12 @@ const Profiles = () => {
                     <img
                       src={student.photo_url}
                       alt={student.name}
-                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0"
+                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0 cursor-zoom-in"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreviewImageUrl(student.photo_url || "");
+                        setIsPreviewOpen(true);
+                      }}
                     />
                   ) : (
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
@@ -319,13 +341,24 @@ const Profiles = () => {
                     <span className="font-semibold text-destructive">₹{student.fees_due.toLocaleString('en-IN')}</span>
                   </div>
                 )}
+                <div className="flex items-center justify-between text-xs sm:text-sm mb-3">
+                  <span className="text-muted-foreground">Next Due:</span>
+                  {(() => {
+                    const daysLeft = getDaysToDue(student.registration_date);
+                    return (
+                      <span className={daysLeft < 0 ? "font-semibold text-destructive" : "font-semibold text-foreground"}>
+                        {daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}
+                      </span>
+                    );
+                  })()}
+                </div>
                 
                 <div className="flex gap-2">
                   <Button 
                     size="sm" 
                     variant="outline" 
                     className="flex-1 h-9 text-xs sm:text-sm"
-                    onClick={() => handleViewProfile(student)}
+                    onClick={() => navigate(`/students/${student.id}`)}
                   >
                     <Eye className="w-3 h-3 mr-1" />
                     <span className="hidden xs:inline">View</span>
@@ -392,6 +425,22 @@ const Profiles = () => {
         onEdit={handleEditStudent}
         onDelete={handleDeleteStudent}
       />
+
+      {/* Image Preview Dialog */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-2 sm:p-4">
+          {previewImageUrl && (
+            <div className="w-full h-full flex items-center justify-center">
+              <img
+                src={previewImageUrl}
+                alt="Student"
+                className="max-w-full max-h-[80vh] rounded-md"
+                onClick={() => setIsPreviewOpen(false)}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -13,6 +13,7 @@ import FeesDue from "./pages/FeesDue";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import StudentProfile from "./pages/StudentProfile";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/registration" element={<Registration />} />
                     <Route path="/profiles" element={<Profiles />} />
+                    <Route path="/students/:id" element={<StudentProfile />} />
                     <Route path="/fees-due" element={<FeesDue />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<NotFound />} />

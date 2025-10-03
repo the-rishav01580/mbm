@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,81 +15,57 @@ import {
   Search,
   Filter
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { calculateDueDate } from "@/lib/dateUtils";
 
 const FeesDue = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [studentsDue, setStudentsDue] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  // Mock data for students with fees due - will be replaced with Supabase data
-  const studentsDue = [
-    {
-      id: 1,
-      name: "Rahul Verma",
-      enrollmentNumber: "20CS001",
-      branch: "Computer Science",
-      phone: "+91 9876543210",
-      fatherPhone: "+91 9876543211",
-      amountDue: 2500,
-      dueDate: "2024-01-25",
-      daysOverdue: 5,
-      lastReminder: "2024-01-20",
-      photo: null,
-    },
-    {
-      id: 2,
-      name: "Sneha Patel",
-      enrollmentNumber: "20EC002", 
-      branch: "Electronics",
-      phone: "+91 9876543212",
-      fatherPhone: "+91 9876543213",
-      amountDue: 2500,
-      dueDate: "2024-01-27",
-      daysOverdue: 3,
-      lastReminder: "2024-01-22",
-      photo: null,
-    },
-    {
-      id: 3,
-      name: "Vikash Jha",
-      enrollmentNumber: "20ME003",
-      branch: "Mechanical",
-      phone: "+91 9876543214",
-      fatherPhone: "+91 9876543215",
-      amountDue: 2500,
-      dueDate: "2024-01-23",
-      daysOverdue: 7,
-      lastReminder: "2024-01-18",
-      photo: null,
-    },
-    {
-      id: 4,
-      name: "Amit Singh",
-      enrollmentNumber: "20IT004",
-      branch: "Information Technology",
-      phone: "+91 9876543216",
-      fatherPhone: "+91 9876543217",
-      amountDue: 2500,
-      dueDate: "2024-01-29",
-      daysOverdue: 1,
-      lastReminder: "2024-01-25",
-      photo: null,
-    },
-    {
-      id: 5,
-      name: "Priya Sharma",
-      enrollmentNumber: "20CE005",
-      branch: "Civil Engineering",
-      phone: "+91 9876543218",
-      fatherPhone: "+91 9876543219",
-      amountDue: 2500,
-      dueDate: "2024-01-21",
-      daysOverdue: 9,
-      lastReminder: "2024-01-16",
-      photo: null,
-    },
-  ];
+  useEffect(() => {
+    const fetchFeesDue = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .gt('fees_due', 0)
+        .order('updated_at', { ascending: false });
+      if (error) {
+        console.error('Failed to load fees due:', error.message);
+        setStudentsDue([]);
+      } else {
+        const mapped = (data || []).map((s) => {
+          const dueDateStr = calculateDueDate(s.registration_date);
+          const dueDate = new Date(dueDateStr);
+          const today = new Date();
+          const msPerDay = 1000 * 60 * 60 * 24;
+          const daysOverdue = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / msPerDay));
+          return {
+            id: s.id,
+            name: s.name,
+            enrollmentNumber: s.enrollment_number,
+            branch: s.branch,
+            phone: s.phone,
+            fatherPhone: s.father_phone,
+            amountDue: Number(s.fees_due) || 0,
+            dueDate: dueDateStr,
+            daysOverdue,
+            lastReminder: s.updated_at,
+            photo: s.photo_url || null,
+          };
+        });
+        setStudentsDue(mapped);
+      }
+      setLoading(false);
+    };
+    fetchFeesDue();
+  }, []);
 
   // Sort by days overdue (ascending - most urgent first)
-  const sortedStudents = studentsDue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  const sortedStudents = useMemo(() => {
+    return [...studentsDue].sort((a, b) => b.daysOverdue - a.daysOverdue);
+  }, [studentsDue]);
 
   const filteredStudents = sortedStudents.filter(student =>
     student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -225,7 +201,10 @@ const FeesDue = () => {
 
       {/* Students List */}
       <div className="space-y-4">
-        {filteredStudents.map((student, index) => (
+        {loading && (
+          <div className="flex items-center justify-center py-12 text-muted-foreground">Loading...</div>
+        )}
+        {!loading && filteredStudents.map((student, index) => (
           <Card 
             key={student.id} 
             className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card"
@@ -328,7 +307,7 @@ const FeesDue = () => {
         ))}
       </div>
 
-      {filteredStudents.length === 0 && (
+      {!loading && filteredStudents.length === 0 && (
         <Card className="shadow-card bg-gradient-card">
           <CardContent className="py-12 text-center">
             <DollarSign className="w-12 h-12 mx-auto text-muted-foreground mb-4" />

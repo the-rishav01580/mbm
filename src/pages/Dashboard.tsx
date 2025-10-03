@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,93 +13,73 @@ import {
   MessageSquare,
   Clock
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Dashboard = () => {
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setStudents(data || []);
+      } catch (e: any) {
+        toast.error("Failed to load dashboard data: " + e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStudents();
+  }, []);
+
+  const totals = useMemo(() => {
+    const totalStudents = students.length;
+    const totalFeesDue = students.reduce((sum, s) => sum + (Number(s.fees_due) || 0), 0);
+    const totalFeesPaidThisMonth = 0; // Placeholder until payments table exists
+    const overdue = students.filter(s => (Number(s.fees_due) || 0) > 0);
+    return {
+      totalStudents,
+      totalFeesDue,
+      overdueCount: overdue.length,
+      monthlyRevenue: totalFeesPaidThisMonth,
+      overdueStudents: overdue,
+    };
+  }, [students]);
+
   const statsData = [
     {
       title: "Total Students",
-      value: 247,
-      description: "Active registrations",
+      value: totals.totalStudents,
+      description: "Active records",
       icon: Users,
-      trend: { value: 12, isPositive: true },
       variant: "default" as const,
     },
     {
       title: "Pending Fees",
-      value: "₹48,500",
-      description: "Amount due this month",
+      value: `₹${totals.totalFeesDue.toLocaleString('en-IN')}`,
+      description: "Amount due",
       icon: DollarSign,
-      trend: { value: 8, isPositive: false },
       variant: "warning" as const,
     },
     {
       title: "Overdue Students",
-      value: 23,
-      description: "Require immediate attention",
+      value: totals.overdueCount,
+      description: "Require attention",
       icon: AlertTriangle,
       variant: "destructive" as const,
     },
     {
       title: "Monthly Revenue",
-      value: "₹1,85,000",
-      description: "Current month collection",
+      value: `₹${totals.monthlyRevenue.toLocaleString('en-IN')}`,
+      description: "This month",
       icon: TrendingUp,
-      trend: { value: 15, isPositive: true },
       variant: "success" as const,
-    },
-  ];
-
-  const recentActivity = [
-    {
-      id: 1,
-      student: "Rajesh Kumar",
-      action: "Fee Payment",
-      amount: "₹2,500",
-      time: "2 hours ago",
-      status: "completed",
-    },
-    {
-      id: 2,
-      student: "Priya Sharma",
-      action: "Registration",
-      amount: "-",
-      time: "4 hours ago",
-      status: "pending",
-    },
-    {
-      id: 3,
-      student: "Amit Singh",
-      action: "Fee Reminder",
-      amount: "₹2,500",
-      time: "6 hours ago",
-      status: "sent",
-    },
-  ];
-
-  const overdueStudents = [
-    {
-      id: 1,
-      name: "Rahul Verma",
-      branch: "Computer Science",
-      daysOverdue: 5,
-      amount: "₹2,500",
-      phone: "+91 9876543210",
-    },
-    {
-      id: 2,
-      name: "Sneha Patel",
-      branch: "Electronics",
-      daysOverdue: 3,
-      amount: "₹2,500",
-      phone: "+91 9876543211",
-    },
-    {
-      id: 3,
-      name: "Vikash Jha",
-      branch: "Mechanical",
-      daysOverdue: 7,
-      amount: "₹2,500",
-      phone: "+91 9876543212",
     },
   ];
 
@@ -141,33 +122,33 @@ const Dashboard = () => {
               Recent Activity
             </CardTitle>
             <CardDescription>
-              Latest transactions and updates from the past 24 hours
+              Latest updates
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentActivity.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex items-center justify-between p-4 bg-background rounded-lg border border-border"
-                >
+              {students.slice(0, 6).map((s) => (
+                <div key={s.id} className="flex items-center justify-between p-4 bg-background rounded-lg border border-border">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-medium">
-                        {activity.student[0]}
+                        {s.name?.[0] || 'S'}
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{activity.student}</p>
-                      <p className="text-sm text-muted-foreground">{activity.action}</p>
+                      <p className="font-medium text-foreground">{s.name}</p>
+                      <p className="text-sm text-muted-foreground">Enrolled {new Date(s.created_at).toLocaleDateString('en-IN')}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-foreground">{activity.amount}</p>
-                    <p className="text-xs text-muted-foreground">{activity.time}</p>
+                    <p className="font-medium text-foreground">₹{Number(s.fees_paid || 0).toLocaleString('en-IN')}</p>
+                    <p className="text-xs text-muted-foreground">Paid total</p>
                   </div>
                 </div>
               ))}
+              {students.length === 0 && (
+                <p className="text-sm text-muted-foreground">No recent activity yet.</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -185,46 +166,49 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {overdueStudents.map((student) => (
-                <div
-                  key={student.id}
-                  className="p-3 bg-background rounded-lg border border-border"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-medium text-sm text-foreground">{student.name}</p>
-                    <Badge variant="destructive" className="text-xs">
-                      {student.daysOverdue}d overdue
-                    </Badge>
+              {totals.overdueStudents.map((student: any) => {
+                const amountDue = Number(student.fees_due) || 0;
+                return (
+                  <div key={student.id} className="p-3 bg-background rounded-lg border border-border">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-medium text-sm text-foreground">{student.name}</p>
+                      <Badge variant="destructive" className="text-xs">
+                        Due ₹{amountDue.toLocaleString('en-IN')}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {student.branch}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-7 text-xs"
+                        onClick={() => window.open(`tel:${student.phone}`)}
+                      >
+                        <Phone className="w-3 h-3 mr-1" />
+                        Call
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-7 text-xs"
+                        onClick={() => 
+                          window.open(
+                            `https://wa.me/${(student.phone || '').replace(/[^0-9]/g, '')}?text=Hi ${student.name}, your mess fee of ₹${amountDue.toLocaleString('en-IN')} is due. Please pay at your earliest convenience.`
+                          )
+                        }
+                      >
+                        <MessageSquare className="w-3 h-3 mr-1" />
+                        WhatsApp
+                      </Button>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {student.branch} • {student.amount}
-                  </p>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 h-7 text-xs"
-                      onClick={() => window.open(`tel:${student.phone}`)}
-                    >
-                      <Phone className="w-3 h-3 mr-1" />
-                      Call
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 h-7 text-xs"
-                      onClick={() => 
-                        window.open(
-                          `https://wa.me/${student.phone.replace(/[^0-9]/g, '')}?text=Hi ${student.name}, your mess fee of ${student.amount} is overdue by ${student.daysOverdue} days. Please pay at your earliest convenience.`
-                        )
-                      }
-                    >
-                      <MessageSquare className="w-3 h-3 mr-1" />
-                      WhatsApp
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
+              {totals.overdueStudents.length === 0 && (
+                <p className="text-sm text-muted-foreground">No overdue students. Great job!</p>
+              )}
             </div>
           </CardContent>
         </Card>

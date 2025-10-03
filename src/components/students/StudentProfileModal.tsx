@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { calculateDueDate, getDaysUntilDue } from "@/lib/dateUtils";
 import { validatePhone, validateName, validateEnrollmentNumber, sanitizeInput } from "@/lib/validation";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Student {
   id: string;
@@ -55,12 +56,43 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
   const [isEditing, setIsEditing] = useState(false);
   const [editedStudent, setEditedStudent] = useState<Student | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [payments, setPayments] = useState<Array<{ id: string; date: string; amount: number; type: "cash" | "online"; status: "completed" | "pending" }>>([]);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
+  const [newPayment, setNewPayment] = useState<{ amount: string; method: "cash" | "online"; status: "completed" | "pending" }>({ amount: "", method: "cash", status: "completed" });
+  const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
 
   React.useEffect(() => {
     if (student) {
       setEditedStudent({ ...student });
     }
   }, [student]);
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      if (!student) return;
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('student_id', student.id)
+        .order('paid_at', { ascending: false });
+      if (error) {
+        if ((error as any)?.code === '42P01') {
+          toast.error('Payments table not found. Please apply the latest Supabase migration.');
+        } else {
+          toast.error('Failed to load payments: ' + error.message);
+        }
+        return;
+      }
+      setPayments((data || []).map((p) => ({
+        id: p.id,
+        date: p.paid_at,
+        amount: Number(p.amount) || 0,
+        type: p.method,
+        status: p.status,
+      })));
+    };
+    fetchPayments();
+  }, [student?.id]);
 
   if (!student || !editedStudent) return null;
 
@@ -209,7 +241,7 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
               </CardHeader>
               <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20 self-center sm:self-start">
+                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20 self-center sm:self-start cursor-zoom-in" onClick={() => setIsPhotoPreviewOpen(true)}>
                     <AvatarImage src={student.photo} alt={student.name} />
                     <AvatarFallback className="text-lg">{student.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
                   </Avatar>
@@ -340,9 +372,9 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 sm:p-6 pt-0">
-                {student.transactions.length > 0 ? (
+                {payments.length > 0 ? (
                   <div className="space-y-3">
-                    {student.transactions.map((transaction) => (
+                    {payments.map((transaction) => (
                       <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg border">
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-sm sm:text-base">₹{transaction.amount}</p>
@@ -359,6 +391,92 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
                 ) : (
                   <p className="text-muted-foreground text-center py-6 text-sm">No payment history available</p>
                 )}
+                <div className="mt-4 p-3 border rounded-lg space-y-3">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Label>Amount</Label>
+                      <Input type="number" min="0" step="0.01" value={newPayment.amount} onChange={(e) => setNewPayment((p) => ({ ...p, amount: e.target.value }))} />
+                    </div>
+                    <div className="w-40">
+                      <Label>Method</Label>
+                      <Select value={newPayment.method} onValueChange={(v: "cash" | "online") => setNewPayment((p) => ({ ...p, method: v }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="online">Online</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-40">
+                      <Label>Status</Label>
+                      <Select value={newPayment.status} onValueChange={(v: "completed" | "pending") => setNewPayment((p) => ({ ...p, status: v }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={async () => {
+                        if (!student) return;
+                        const amountNum = Number(newPayment.amount);
+                        if (!amountNum || amountNum <= 0) {
+                          toast.error("Enter a valid amount");
+                          return;
+                        }
+                        // Ensure user is authenticated for RLS policies
+                        const { data: userResult } = await supabase.auth.getUser();
+                        if (!userResult?.user) {
+                          toast.error('You must be signed in to record a payment.');
+                          return;
+                        }
+                        setIsSavingPayment(true);
+                        const { error } = await supabase.from('payments').insert({
+                          student_id: student.id,
+                          amount: amountNum,
+                          method: newPayment.method,
+                          status: newPayment.status,
+                        });
+                        setIsSavingPayment(false);
+                        if (error) {
+                          if ((error as any)?.code === '42501') {
+                            toast.error('Not authorized to record payments. Check RLS policies.');
+                          } else if ((error as any)?.code === '42P01') {
+                            toast.error('Payments table not found. Please apply the latest Supabase migration.');
+                          } else {
+                            toast.error("Failed to record payment: " + error.message);
+                          }
+                          return;
+                        }
+                        toast.success("Payment recorded");
+                        setNewPayment({ amount: "", method: "cash", status: "completed" });
+                        // Refresh payments and let parent refresh list on next open
+                        const { data } = await supabase
+                          .from('payments')
+                          .select('*')
+                          .eq('student_id', student.id)
+                          .order('paid_at', { ascending: false });
+                        setPayments((data || []).map((p) => ({
+                          id: p.id,
+                          date: p.paid_at,
+                          amount: Number(p.amount) || 0,
+                          type: p.method,
+                          status: p.status,
+                        })));
+                      }}
+                      disabled={isSavingPayment}
+                    >
+                      {isSavingPayment ? 'Saving...' : 'Record Payment'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -497,6 +615,19 @@ export function StudentProfileModal({ student, isOpen, onClose, onEdit, onDelete
           </div>
         </div>
       </DialogContent>
+      {/* Fullscreen Photo Preview */}
+      <Dialog open={isPhotoPreviewOpen} onOpenChange={setIsPhotoPreviewOpen}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-2 sm:p-4">
+          <div className="w-full h-full flex items-center justify-center">
+            <img
+              src={student?.photo || ''}
+              alt={student?.name || 'Student'}
+              className="max-w-full max-h-[80vh] rounded-md"
+              onClick={() => setIsPhotoPreviewOpen(false)}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

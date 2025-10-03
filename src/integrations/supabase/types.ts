@@ -95,6 +95,37 @@ export type Database = {
         }
         Relationships: []
       }
+      ,
+      payments: {
+        Row: {
+          id: string
+          student_id: string
+          amount: number
+          method: Database["public"]["Enums"]["payment_method"]
+          status: Database["public"]["Enums"]["payment_status"]
+          paid_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          student_id: string
+          amount: number
+          method?: Database["public"]["Enums"]["payment_method"]
+          status?: Database["public"]["Enums"]["payment_status"]
+          paid_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          student_id?: string
+          amount?: number
+          method?: Database["public"]["Enums"]["payment_method"]
+          status?: Database["public"]["Enums"]["payment_status"]
+          paid_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -113,6 +144,9 @@ export type Database = {
         | "Civil"
         | "Electrical"
       student_status: "active" | "inactive" | "fees_due" | "graduated"
+      ,
+      payment_method: "cash" | "online",
+      payment_status: "completed" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
