@@ -94,7 +94,7 @@ export const Auth = () => {
                   <Label htmlFor="login-identifier">Email or Phone</Label>
                   <Input
                     id="login-identifier"
-                    placeholder="admin@example.com or +919876543210"
+                    placeholder="admin@example.com or +91xxxxxxxxxx"
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
                     required
