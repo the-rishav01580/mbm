@@ -52,13 +52,14 @@ export const validateName = (name: string, fieldName: string = 'Name'): { isVali
 };
 
 export const validateEnrollmentNumber = (enrollmentNumber: string): { isValid: boolean; error?: string } => {
-  if (!enrollmentNumber) {
-    return { isValid: false, error: 'Enrollment number is required' };
+  // Step 1: Check if the enrollment number is empty or just contains spaces.
+  if (!enrollmentNumber || enrollmentNumber.trim() === '') {
+    return { isValid: false, error: 'Enrollment number is required.' };
   }
-  const cleaned = enrollmentNumber.toUpperCase().replace(/\s+/g, '');
-  if (!enrollmentRegex.test(cleaned)) {
-    return { isValid: false, error: 'Enrollment number must be in format: 20CS001 (2 digits + 2 letters + 3-4 digits)' };
-  }
+  // const cleaned = enrollmentNumber.toUpperCase().replace(/\s+/g, '');
+  // if (!enrollmentRegex.test(cleaned)) {
+  //   return { isValid: false, error: 'Enrollment number must be in format: 20CS001 (2 digits + 2 letters + 3-4 digits)' };
+  // }
   return { isValid: true };
 };
 

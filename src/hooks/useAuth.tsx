@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
@@ -28,9 +28,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (!session) {
+        setLoading(false); // Agar session nahi hai, to bhi loading band karo
+      }
+      // onAuthStateChange baaki ka kaam kar lega
     });
 
     return () => subscription.unsubscribe();
@@ -40,6 +41,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await supabase.auth.signOut();
   };
 
+  // FIX: Render children only after the initial auth check is complete.
+  // Jab tak Supabase se session check na ho, tab tak ek loading screen dikhayein.
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        {/* Aap yahan apne component library ka spinner bhi use kar sakte hain */}
+        <p className="text-muted-foreground">Loading Session...</p>
+      </div>
+    );
+  }
+
+  // Jab loading poora ho jaaye, tabhi baaki ka app (children) dikhayein
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>
       {children}

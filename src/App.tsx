@@ -3,9 +3,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+// Layouts and Auth
 import { AppLayout } from "./components/layout/AppLayout";
 import { AuthProvider } from "./hooks/useAuth";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+
+// Pages
 import Dashboard from "./pages/Dashboard";
 import Registration from "./pages/Registration";
 import Profiles from "./pages/Profiles";
@@ -14,6 +18,8 @@ import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import StudentProfile from "./pages/StudentProfile";
+// 👇 1. Yahan apne naye component ko import karein 👇
+import UpdatePassword from "./pages/UpdatePassword";
 
 const queryClient = new QueryClient();
 
@@ -25,7 +31,12 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            {/* Public Routes */}
             <Route path="/auth" element={<Auth />} />
+            {/* 👇 2. Yahan naya password reset route add karein 👇 */}
+            <Route path="/update-password" element={<UpdatePassword />} />
+
+            {/* Protected Routes */}
             <Route path="/*" element={
               <ProtectedRoute>
                 <AppLayout>
@@ -33,9 +44,9 @@ const App = () => (
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/registration" element={<Registration />} />
                     <Route path="/profiles" element={<Profiles />} />
-                    <Route path="/students/:id" element={<StudentProfile />} />
-                    <Route path="/fees-due" element={<FeesDue />} />
+                    <Route path="/students/:id" element={<StudentProfile />} />                    <Route path="/fees-due" element={<FeesDue />} />
                     <Route path="/settings" element={<Settings />} />
+                    {/* Catch-all for protected routes */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </AppLayout>
