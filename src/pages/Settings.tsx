@@ -9,7 +9,7 @@ import { Settings as SettingsIcon, Database, Bell, Save, Loader2 } from "lucide-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// FIX: Settings ke liye ek type define kiya gaya hai
+
 interface AppSettings {
   messName: string;
   monthlyFee: string;
