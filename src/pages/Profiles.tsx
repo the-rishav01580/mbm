@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,10 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-// FIX: Aapke dateUtils se functions import kiye ja rahe hain
-import { calculateDueDate, getDaysUntilDue } from "@/lib/dateUtils";
+// FIX 1: Import the necessary function from dateUtils
+import { getDaysUntilDue } from "@/lib/dateUtils";
 
-// FIX: TypeScript interface for better code quality and consistency
+// FIX 1: Add 'due_date' to the Student interface
 interface Student {
   id: string;
   enrollment_number: string;
@@ -24,6 +24,7 @@ interface Student {
   father_phone: string;
   branch: string;
   registration_date: string;
+  due_date: string; // This field is crucial for the countdown
   photo_url?: string;
   status: 'active' | 'fees_due' | 'inactive' | 'graduated';
   fees_paid: number;
@@ -41,42 +42,40 @@ const Profiles = () => {
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  const branches = ["Computer Science", "Electronics", "Mechanical", "Civil", "Electrical"];
-
-  // FIX: Real-time subscription ke liye fetch function ko alag kiya gaya hai
-  const fetchStudents = async () => {
-    // setLoading ko yahan se hata diya, taaki real-time updates background me hon
-    const { data, error } = await supabase
-      .from('students')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error("Failed to fetch students: " + error.message);
-      setStudentsList([]); // Error hone par list ko khaali kar dein
-    } else {
-      setStudentsList(data || []);
-    }
-  };
+  const branches = ["Computer Science", "Electronics", "Mechanical", "Civil", "Electrical", "Information Technology"];
 
   useEffect(() => {
-    setLoading(true);
-    fetchStudents().finally(() => setLoading(false));
+    const fetchStudents = async () => {
+      // setLoading is set outside, so this function can be reused by subscription
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    // FIX: Real-time subscription add kiya gaya hai
+      if (error) {
+        toast.error("Failed to fetch students: " + error.message);
+      } else {
+        setStudentsList(data || []);
+      }
+      setLoading(false); // Always stop loading
+    };
+
+    setLoading(true);
+    fetchStudents();
+
+    // Add real-time subscription
     const channel = supabase
       .channel('students-profiles')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'students' },
         (payload) => {
-          console.log('Student data changed, refreshing list...', payload);
-          fetchStudents(); // Koi bhi change hone par list ko refresh karein
+          console.log('Student list changed, refreshing...', payload);
+          fetchStudents(); // Refresh data on any change
         }
       )
       .subscribe();
 
-    // Cleanup function
     return () => {
       supabase.removeChannel(channel);
     };
@@ -103,21 +102,27 @@ const Profiles = () => {
     }
   };
 
-  // FIX: Aapke dateUtils ka istemal karke 'days left' calculate kiya ja raha hai
-  const getDaysToDue = (registrationDate: string): number => {
-    try {
-      const dueDateStr = calculateDueDate(registrationDate);
-      return getDaysUntilDue(dueDateStr);
-    } catch {
-      return 0;
+  // FIX 2: Create a function to generate the WhatsApp URL
+  const generateWhatsAppUrl = (student: Student) => {
+    let phoneNumber = student.phone.replace(/[^0-9]/g, '');
+    if (phoneNumber.length === 10) phoneNumber = '91' + phoneNumber;
+
+    let message: string;
+    if (student.fees_due > 0) {
+      const amountDue = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(student.fees_due);
+      message = `Hi ${student.name}, this is a friendly reminder from the mess management. Your fee of ${amountDue} is pending. Please pay at your earliest convenience. Thank you!`;
+    } else {
+      message = `Hi ${student.name}, this is a message from the mess management.`;
     }
+    
+    return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
   };
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-4 text-muted-foreground">Loading student profiles...</p>
+        <p className="ml-4 text-muted-foreground">Loading Students...</p>
       </div>
     );
   }
@@ -130,8 +135,7 @@ const Profiles = () => {
           <p className="text-muted-foreground">Manage and view all registered students</p>
         </div>
         <Button onClick={() => navigate('/registration')}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add New Student
+          <Plus className="w-4 h-4 mr-2" /> Add New Student
         </Button>
       </div>
 
@@ -140,7 +144,12 @@ const Profiles = () => {
           <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search by name or enrollment number..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 h-11 text-base"/>
+              <Input
+                placeholder="Search by name or enrollment number..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-11 text-base"
+              />
             </div>
             <div className="flex items-center gap-2">
               <Select value={selectedBranch} onValueChange={setSelectedBranch}>
@@ -150,11 +159,24 @@ const Profiles = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Branches</SelectItem>
-                  {branches.map((branch) => <SelectItem key={branch} value={branch}>{branch}</SelectItem>)}
+                  {branches.map((branch) => (
+                    <SelectItem key={branch} value={branch}>
+                      {branch}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {(searchTerm || (selectedBranch && selectedBranch !== "all")) && (
-                <Button variant="outline" className="h-11" onClick={() => { setSearchTerm(""); setSelectedBranch("all"); }}>Clear</Button>
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedBranch("all");
+                  }}
+                >
+                  Clear
+                </Button>
               )}
             </div>
           </div>
@@ -164,48 +186,70 @@ const Profiles = () => {
       <p className="text-sm text-muted-foreground">Showing {filteredStudents.length} of {studentsList.length} students</p>
 
       <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {filteredStudents.map((student) => (
-          <Card key={student.id} className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card flex flex-col">
-            <CardHeader className="p-4 pb-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-primary cursor-zoom-in" onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(student.photo_url || ""); setIsPreviewOpen(true); }}>
-                    {student.photo_url ? <img src={student.photo_url} alt={student.name} className="w-full h-full rounded-full object-cover" /> : <span className="text-white font-medium text-base">{student.name.split(' ').map(n => n[0]).join('')}</span>}
+        {filteredStudents.map((student) => {
+          // FIX 1: Calculate days left for each student
+          const daysLeft = student.due_date ? getDaysUntilDue(student.due_date) : null;
+          
+          return (
+            <Card key={student.id} className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card flex flex-col">
+              <CardHeader className="p-4 pb-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-primary cursor-zoom-in" onClick={(e) => { e.stopPropagation(); setPreviewImageUrl(student.photo_url || ""); setIsPreviewOpen(true); }}>
+                      {student.photo_url ? <img src={student.photo_url} alt={student.name} className="w-full h-full rounded-full object-cover" /> : <span className="text-white font-medium text-base">{student.name.split(' ').map(n => n[0]).join('')}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg font-semibold truncate">{student.name}</CardTitle>
+                      <CardDescription className="text-sm">{student.enrollment_number}</CardDescription>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg font-semibold truncate">{student.name}</CardTitle>
-                    <CardDescription className="text-sm">{student.enrollment_number}</CardDescription>
+                  <div className="flex-shrink-0">{getStatusBadge(student.status)}</div>
+                </div>
+              </CardHeader>
+              
+              <CardContent className="p-4 pt-0 space-y-4 flex-grow flex flex-col justify-between">
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2"><GraduationCap className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Branch:</span><span className="font-medium truncate">{student.branch}</span></div>
+                  <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Phone:</span><span className="font-medium">{student.phone}</span></div>
+                  <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Joined:</span><span className="font-medium">{new Date(student.registration_date).toLocaleDateString('en-IN')}</span></div>
+                </div>
+
+                <div className="pt-3 border-t">
+                  {student.fees_due > 0 && (
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-muted-foreground">Amount Due:</span>
+                      <span className="font-semibold text-destructive">₹{student.fees_due.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  {/* FIX 1: Display the countdown */}
+                  <div className="flex justify-between text-sm mb-3">
+                    <span className="text-muted-foreground">Next Due:</span>
+                    {daysLeft !== null && (
+                      <span className={daysLeft < 0 ? "font-semibold text-destructive" : "font-semibold text-foreground"}>
+                        {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1 h-9" onClick={() => navigate(`/students/${student.id}`)}><Eye className="w-4 h-4 mr-2" />View</Button>
+                    {/* FIX 2: Implement the WhatsApp reminder logic */}
+                    <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => window.open(generateWhatsAppUrl(student), '_blank')}>
+                      <MessageSquare className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex-shrink-0">{getStatusBadge(student.status)}</div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-4 flex-grow flex flex-col justify-between">
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2"><GraduationCap className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Branch:</span><span className="font-medium truncate">{student.branch}</span></div>
-                <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Phone:</span><span className="font-medium">{student.phone}</span></div>
-                <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Joined:</span><span className="font-medium">{new Date(student.registration_date).toLocaleDateString('en-IN')}</span></div>
-              </div>
-              <div className="pt-3 border-t">
-                <div className="flex justify-between text-sm mb-3">
-                  <span className="text-muted-foreground">Next Due:</span>
-                  {(() => { const daysLeft = getDaysToDue(student.registration_date); return (<span className={daysLeft < 0 ? "font-semibold text-destructive" : "font-semibold text-foreground"}>{daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}</span>); })()}
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" className="flex-1 h-9" onClick={() => navigate(`/students/${student.id}`)}><Eye className="w-4 h-4 mr-2" />View Profile</Button>
-                  <Button size="sm" variant="outline" className="h-9 px-3" onClick={() => window.open(`https://wa.me/${student.phone.replace(/[^0-9]/g, '')}`)}><MessageSquare className="w-4 h-4" /></Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       {!loading && filteredStudents.length === 0 && (
         <Card className="shadow-card bg-gradient-card">
           <CardContent className="py-12 text-center">
             <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">No Students Found</h3>
+            <h3 className="text-lg font-medium text-foreground mb-2">No students found</h3>
             <p className="text-muted-foreground mb-4">{studentsList.length === 0 ? "No students have been registered yet." : "No students match your current search criteria."}</p>
             <Button onClick={() => { studentsList.length === 0 ? navigate('/registration') : (() => { setSearchTerm(""); setSelectedBranch("all"); })(); }}>{studentsList.length === 0 ? "Register First Student" : "Clear Filters"}</Button>
           </CardContent>
