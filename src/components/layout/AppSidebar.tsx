@@ -4,8 +4,7 @@ import {
   LayoutDashboard,
   UserPlus,
   Users,
-  DollarSign,
-  Settings,
+  IndianRupeeIcon,
   Menu,
   X,
   GraduationCap,
@@ -46,13 +45,9 @@ const navigationItems = [
   {
     title: "Fees Due",
     url: "/fees-due",
-    icon: DollarSign,
+    icon: IndianRupeeIcon,
   },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
+ 
 ];
 
 export function AppSidebar() {
