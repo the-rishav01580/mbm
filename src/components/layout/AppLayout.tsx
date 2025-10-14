@@ -3,6 +3,7 @@ import { AppSidebar } from "./AppSidebar";
 import { Bell, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Analytics } from "@vercel/analytics/next"
 
 interface AppLayoutProps {
   children: React.ReactNode;
