@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, differenceInDays } from "date-fns";
 
-// TypeScript interface for clarity and type safety
+interface Student {
+  id: string;
+  name: string;
+  enrollment_number: string;
+  branch: string;
+  phone: string;
+  due_date: string;
+  photo_url: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+interface Transaction {
+  id: string;
+  student_id: string;
+  amount: number;
+  status: 'completed' | 'pending';
+  payment_date: string;
+}
+
 interface StudentDue {
   id: string;
   name: string;
@@ -43,7 +62,6 @@ const formatAmount = (amount: number): string => {
 // Helper function to get WhatsApp URL
 const getWhatsAppUrl = (student: StudentDue): string => {
   let phoneNumber = student.phone.replace(/[^0-9]/g, '');
-  // Add country code if not present (assuming India)
   if (phoneNumber.length === 10) {
     phoneNumber = '91' + phoneNumber;
   }
@@ -52,12 +70,12 @@ const getWhatsAppUrl = (student: StudentDue): string => {
   if (student.amountDue > 0) {
     const amountDue = formatAmount(student.amountDue);
     if (student.daysOverdue > 0) {
-      message = `Hi ${student.name}, this is a friendly reminder from the mess management. Your fee of ${amountDue} is overdue by ${student.daysOverdue} days. Please pay at your earliest convenience to avoid any inconvenience. Thank you!`;
+      message = `Hi ${student.name}, this is a friendly reminder from the mess management. Your fee of ₹${amountDue} is overdue by ${student.daysOverdue} days. Please pay at your earliest convenience to avoid any inconvenience. Thank you!`;
     } else {
-      message = `Hi ${student.name}, this is a friendly reminder from the mess management. Your fee of ${amountDue} is due today. Please pay at your earliest convenience. Thank you!`;
+      message = `Hi ${student.name}, this is a friendly reminder from the mess management. Your fee of ₹${amountDue} is due today. Please pay at your earliest convenience. Thank you!`;
     }
   } else {
-    message = `Hi ${student.name}, this is a message from the mess management.`;
+    message = `Hi ${student.name}, this is a friendly reminder from the MAA BHAGVATI MESS. Your monthly mess fee is due. Please pay at your earliest convenience. Thank you!`;
   }
   
   return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
@@ -65,72 +83,102 @@ const getWhatsAppUrl = (student: StudentDue): string => {
 
 const FeesDue = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [studentsDue, setStudentsDue] = useState<StudentDue[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchFeesDue = async () => {
+  const fetchData = useCallback(async () => {
+    try {
       const today = format(new Date(), 'yyyy-MM-dd');
       
-      // Fetch students with either overdue dates OR pending fees
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .or(`due_date.lte.${today},fees_due.gt.0`);
+      // Fetch all students and all transactions
+      const [studentsRes, transactionsRes] = await Promise.all([
+        supabase
+          .from('students')
+          .select('*')
+          .lte('due_date', today), // Students with due date passed or today
+        supabase
+          .from('transactions')
+          .select('*')
+      ]);
 
-      if (error) {
-        toast.error('Failed to load fees due data: ' + error.message);
-        setStudentsDue([]);
-      } else {
-        const mappedData: StudentDue[] = (data || [])
-          .map((s) => {
-            const daysLeft = s.due_date ? getDaysUntilDue(s.due_date) : -999;
-            const daysOverdue = Math.max(0, -daysLeft);
-            const amountDue = Number(s.fees_due) || 0;
-            
-            return {
-              id: s.id,
-              name: s.name,
-              enrollmentNumber: s.enrollment_number || 'N/A',
-              branch: s.branch || 'N/A',
-              phone: s.phone || 'N/A',
-              amountDue: amountDue,
-              dueDate: s.due_date || 'N/A',
-              daysOverdue,
-              lastReminder: s.updated_at || s.created_at,
-              photo: s.photo_url || null,
-            };
-          })
-          .filter(s => s.amountDue > 0 || s.daysOverdue > 0);
+      if (studentsRes.error) throw studentsRes.error;
+      if (transactionsRes.error && transactionsRes.error.code !== 'PGRST116') throw transactionsRes.error;
 
-        setStudentsDue(mappedData);
-      }
+      setStudents(studentsRes.data || []);
+      setTransactions(transactionsRes.data || []);
+    } catch (error: any) {
+      console.error('Failed to fetch data:', error);
+      toast.error('Failed to load fees due data');
+      setStudents([]);
+      setTransactions([]);
+    } finally {
       setLoading(false);
-    };
+    }
+  }, []);
 
+  useEffect(() => {
     setLoading(true);
-    fetchFeesDue();
+    fetchData();
 
+    // Real-time subscriptions
     const channel = supabase
-      .channel('students-fees-due')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'students' },
-        () => fetchFeesDue()
-      )
+      .channel('fees-due-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchData)
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchData]);
+
+  // Calculate students with dues
+  const studentsDue = useMemo(() => {
+    // Create a map of student pending amounts
+    const studentPendingAmounts = new Map<string, number>();
+    
+    transactions.forEach(transaction => {
+      if (transaction.status === 'pending') {
+        const current = studentPendingAmounts.get(transaction.student_id) || 0;
+        studentPendingAmounts.set(transaction.student_id, current + transaction.amount);
+      }
+    });
+
+    // Map students to StudentDue format
+    const mappedData: StudentDue[] = students
+      .map(student => {
+        const pendingAmount = studentPendingAmounts.get(student.id) || 0;
+        const daysLeft = student.due_date ? getDaysUntilDue(student.due_date) : -999;
+        const daysOverdue = Math.max(0, -daysLeft);
+        
+        return {
+          id: student.id,
+          name: student.name || 'N/A',
+          enrollmentNumber: student.enrollment_number || 'N/A',
+          branch: student.branch || 'N/A',
+          phone: student.phone || 'N/A',
+          amountDue: pendingAmount,
+          dueDate: student.due_date || 'N/A',
+          daysOverdue,
+          lastReminder: student.updated_at || student.created_at,
+          photo: student.photo_url || null,
+        };
+      })
+      // Filter to only show students with pending amount or overdue
+      .filter(s => s.amountDue > 0 || s.daysOverdue > 0);
+
+    return mappedData;
+  }, [students, transactions]);
 
   const sortedStudents = useMemo(() => {
     return [...studentsDue].sort((a, b) => {
+      // First sort by amount due (higher amounts first)
       if (a.amountDue !== b.amountDue) {
         return b.amountDue - a.amountDue;
       }
+      // Then by days overdue
       return b.daysOverdue - a.daysOverdue;
     });
   }, [studentsDue]);
@@ -140,7 +188,8 @@ const FeesDue = () => {
     const term = searchTerm.toLowerCase();
     return sortedStudents.filter(student =>
       student.name.toLowerCase().includes(term) ||
-      student.enrollmentNumber.toLowerCase().includes(term)
+      student.enrollmentNumber.toLowerCase().includes(term) ||
+      student.phone.includes(term)
     );
   }, [sortedStudents, searchTerm]);
   
@@ -162,6 +211,26 @@ const FeesDue = () => {
     navigate(`/students/${studentId}`);
   };
 
+  const handleCall = (phone: string) => {
+    if (phone && phone !== 'N/A') {
+      window.open(`tel:${phone}`, '_self');
+    } else {
+      toast.error("Phone number not available");
+    }
+  };
+
+  const handleWhatsApp = (student: StudentDue) => {
+    if (student.phone && student.phone !== 'N/A') {
+      try {
+        window.open(getWhatsAppUrl(student), '_blank', 'noopener,noreferrer');
+      } catch (error) {
+        toast.error("Failed to open WhatsApp");
+      }
+    } else {
+      toast.error("Phone number not available");
+    }
+  };
+
   const totalAmountDue = useMemo(() => {
     return filteredStudents.reduce((sum, student) => sum + student.amountDue, 0);
   }, [filteredStudents]);
@@ -171,10 +240,10 @@ const FeesDue = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Fees Due</h1>
-          <p className="text-muted-foreground">Students with overdue fee payments (sorted by amount and urgency)</p>
+          <p className="text-muted-foreground">Students with pending payments (sorted by amount and urgency)</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-muted-foreground">Total Overdue Amount</p>
+          <p className="text-sm text-muted-foreground">Total Pending Amount</p>
           <p className="text-2xl font-bold text-destructive">{formatAmount(totalAmountDue)}</p>
         </div>
       </div>
@@ -185,7 +254,7 @@ const FeesDue = () => {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
-                placeholder="Search by name or enrollment number..." 
+                placeholder="Search by name, enrollment or phone..." 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
                 className="pl-10" 
@@ -224,7 +293,16 @@ const FeesDue = () => {
                 </div>
                 <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center overflow-hidden">
                   {student.photo ? (
-                    <img src={student.photo} alt={student.name} className="w-full h-full object-cover" />
+                    <img 
+                      src={student.photo} 
+                      alt={student.name} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        target.parentElement!.innerHTML = `<span class="text-muted-foreground font-medium">${student.name.split(' ').map(n => n[0]).join('')}</span>`;
+                      }}
+                    />
                   ) : (
                     <span className="text-muted-foreground font-medium">
                       {student.name.split(' ').map(n => n[0]).join('')}
@@ -260,15 +338,19 @@ const FeesDue = () => {
                     </p>
                   </div>
                   <div className="flex gap-2 justify-end">
-                    <Button asChild size="sm" variant="outline">
-                      <a href={`tel:${student.phone}`}>
-                        <Phone className="w-3 h-3 mr-1" /> Call
-                      </a>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleCall(student.phone)}
+                      disabled={!student.phone || student.phone === 'N/A'}
+                    >
+                      <Phone className="w-3 h-3 mr-1" /> Call
                     </Button>
                     <Button 
                       size="sm" 
                       variant="outline" 
-                      onClick={() => window.open(getWhatsAppUrl(student), '_blank')}
+                      onClick={() => handleWhatsApp(student)}
+                      disabled={!student.phone || student.phone === 'N/A'}
                     >
                       <MessageSquare className="w-3 h-3 mr-1" /> WhatsApp
                     </Button>
@@ -298,7 +380,11 @@ const FeesDue = () => {
           <CardContent className="py-12 text-center">
             <DollarSign className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">All Clear!</h3>
-            <p className="text-muted-foreground">No students have overdue fees at the moment.</p>
+            <p className="text-muted-foreground">
+              {searchTerm 
+                ? "No students found matching your search." 
+                : "No students have pending payments at the moment."}
+            </p>
           </CardContent>
         </Card>
       )}

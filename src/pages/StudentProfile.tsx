@@ -12,11 +12,9 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { ArrowLeft, Wallet, User, CreditCard, Loader2, Phone, MessageSquare, Edit, Trash, Download, Calculator, Calendar, ChevronLeft, ChevronRight, Edit2, Trash2, Upload, AlertCircle, Utensils } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getDaysUntilDue } from "@/lib/dateUtils";
-import { getDaysUntilDue } from "@/lib/dateUtils";
 import { toast } from "sonner";
 import { format } from 'date-fns';
 import Papa from 'papaparse';
-import { isNull } from "util";
 
 // --- TYPES ---
 type PaymentMethod = "Cash" | "Online";
@@ -242,12 +240,12 @@ const EditStudentDialog = ({ isOpen, onClose, student, onSave }: { isOpen: boole
 
 const FeesCalculator = ({ formatAmount }: { formatAmount: (amount: number) => string }) => { 
   const [monthlyFee, setMonthlyFee] = useState("2900"); 
-  const [absentDays, setAbsentDays] = useState(null); 
+  const [absentDays, setAbsentDays] = useState("0"); 
   const totalAmount = useMemo(() => { 
     const fee = parseFloat(monthlyFee) || 0; 
     const days = parseInt(absentDays) || 0; 
     if (fee <= 0 || days < 0) return fee; 
-    const deductionPerDay = fee / 60; 
+    const deductionPerDay = fee / 30; 
     return Math.max(0, fee - (deductionPerDay * days)); 
   }, [monthlyFee, absentDays]); 
   
@@ -411,11 +409,9 @@ const StudentProfile = () => {
     setLoading(true);
     fetchAllData();
     const channel = supabase.channel(`student-profile-${id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'students', filter: `id=eq.${id}` }, fetchAllData).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `student_id=eq.${id}` }, fetchAllData).subscribe();
-    const channel = supabase.channel(`student-profile-${id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'students', filter: `id=eq.${id}` }, fetchAllData).on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `student_id=eq.${id}` }, fetchAllData).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [id, navigate]);
   
-  const daysLeft = useMemo(() => student && student.due_date ? getDaysUntilDue(student.due_date) : 0, [student]);
   const daysLeft = useMemo(() => student && student.due_date ? getDaysUntilDue(student.due_date) : 0, [student]);
   const formatAmount = useCallback((amount: number) => currencyFormatter.format(amount || 0), []);
   const resetForm = useCallback(() => { setFormState(createEmptyFormState()); setIsEditing(false); }, []);
@@ -425,7 +421,6 @@ const StudentProfile = () => {
     if (!student) return;
     const amount = Number(formState.amount);
     if (!formState.date || isNaN(amount) || amount <= 0) {
-      toast.error("Please provide a valid date and amount."); return;
       toast.error("Please provide a valid date and amount."); return;
     }
     setIsSaving(true);
@@ -525,7 +520,6 @@ const StudentProfile = () => {
 
   return (
     <div className="space-y-6 pb-8">
-    <div className="space-y-6 pb-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="icon" onClick={() => navigate(-1)}><ArrowLeft className="w-4 h-4" /></Button>
@@ -544,7 +538,6 @@ const StudentProfile = () => {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Card className="shadow-card bg-gradient-card">
-            <CardHeader><CardTitle className="flex items-center gap-2"><User className="w-5 h-5" /> Personal & Academic Details</CardTitle></CardHeader>
             <CardHeader><CardTitle className="flex items-center gap-2"><User className="w-5 h-5" /> Personal & Academic Details</CardTitle></CardHeader>
             <CardContent className="grid sm:grid-cols-2 gap-4 text-sm">
                 <div><strong className="text-muted-foreground">Enrollment:</strong> {student.enrollment_number}</div>

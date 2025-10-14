@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,9 +31,16 @@ interface Student {
   status: StudentStatus;
   fees_paid: number;
   fees_due: number;
-  shift?: MealShift; // Added shift field
+  shift?: MealShift;
   created_at: string;
   updated_at: string;
+}
+
+interface Transaction {
+  id: string;
+  student_id: string;
+  amount: number;
+  status: 'completed' | 'pending';
 }
 
 // Helper function to get shift badge with colors
@@ -75,26 +81,45 @@ const getStatusBadge = (status: StudentStatus): JSX.Element => {
 
 // Currency formatter
 const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat("en-IN", { 
-    style: "currency", 
-    currency: "INR", 
-    maximumFractionDigits: 0 
-  }).format(amount);
+  return `₹${amount.toLocaleString('en-IN')}`;
+};
+
+// Helper function to get WhatsApp URL (matching feedue.tsx pattern)
+const getWhatsAppUrl = (student: Student, pendingAmount: number, daysOverdue: number): string => {
+  let phoneNumber = student.phone.replace(/[^0-9]/g, '');
+  // Add country code if not present (assuming India)
+  if (phoneNumber.length === 10) {
+    phoneNumber = '91' + phoneNumber;
+  }
+  
+  let message: string;
+  if (pendingAmount > 0) {
+    const amountDue = formatCurrency(pendingAmount);
+    if (daysOverdue > 0) {
+      message = `Hi ${student.name}, this is a friendly reminder from the MAA BHAGVATI MESS. Your fee of ${amountDue} is overdue by ${daysOverdue} days. Please pay at your earliest convenience to avoid any inconvenience. Thank you!`;
+    } else {
+      message = `Hi ${student.name}, this is a friendly reminder from the MAA BHAGVATI MESS. Your fee of ${amountDue} is due. Please pay at your earliest convenience. Thank you!`;
+    }
+  } else {
+    message = `Hi ${student.name}, this is a friendly reminder from the MAA BHAGVATI MESS. Your monthly mess fee is due. Please pay at your earliest convenience. Thank you!`;
+  }
+  
+  return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 };
 
 const Profiles = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("all");
-  const [selectedShift, setSelectedShift] = useState("all"); // Added shift filter
+  const [selectedShift, setSelectedShift] = useState("all");
   const [studentsList, setStudentsList] = useState<Student[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const branches = ["Computer Science", "Electronics", "Mechanical", "Civil", "Electrical", "Information Technology"];
   
-  // Shift options for filter
   const shiftOptions = [
     { value: "all", label: "All Shifts" },
     { value: "lunch", label: "Lunch Only" },
@@ -102,116 +127,103 @@ const Profiles = () => {
     { value: "both", label: "Both" }
   ];
 
-  // Fetch students with error handling
-  const fetchStudents = useCallback(async () => {
+  // Fetch students and transactions
+  const fetchData = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [studentsRes, transactionsRes] = await Promise.all([
+        supabase.from('students').select('*').order('created_at', { ascending: false }),
+        supabase.from('transactions').select('*')
+      ]);
 
-      if (error) {
-        console.error("Database error:", error);
-        toast.error("Failed to fetch students: " + error.message);
+      if (studentsRes.error) {
+        console.error("Database error:", studentsRes.error);
+        toast.error("Failed to fetch students");
         setStudentsList([]);
       } else {
-        setStudentsList(data || []);
+        setStudentsList(studentsRes.data || []);
+      }
+
+      if (transactionsRes.error && transactionsRes.error.code !== 'PGRST116') {
+        console.error("Transactions error:", transactionsRes.error);
+      } else {
+        setTransactions(transactionsRes.data || []);
       }
     } catch (err) {
       console.error("Unexpected error:", err);
-      toast.error("An unexpected error occurred while fetching students");
+      toast.error("An unexpected error occurred");
       setStudentsList([]);
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  useEffect(() => {
     setLoading(true);
-    fetchStudents();
-    fetchStudents();
+    fetchData();
 
-    // Real-time subscription with error handling
     const channel = supabase
       .channel('students-profiles')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'students' },
-        (payload) => {
-          console.log('Student list changed:', payload);
-          fetchStudents();
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('Realtime subscription active');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Realtime subscription error');
-        }
-      });
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, fetchData)
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchStudents]);
+  }, [fetchData]);
 
-  // Enhanced filtering with phone number and shift search
+  // Calculate pending amounts for each student
+  const studentPendingAmounts = useMemo(() => {
+    const pendingMap = new Map<string, number>();
+    transactions.forEach(transaction => {
+      if (transaction.status === 'pending') {
+        const current = pendingMap.get(transaction.student_id) || 0;
+        pendingMap.set(transaction.student_id, current + transaction.amount);
+      }
+    });
+    return pendingMap;
+  }, [transactions]);
+
+  // Enhanced filtering
   const filteredStudents = useMemo(() => {
     return studentsList.filter(student => {
       const term = searchTerm.toLowerCase().trim();
       
-      // Search by name, enrollment number, or phone number
       const matchesSearch = !term || 
         student.name.toLowerCase().includes(term) ||
         student.enrollment_number.toLowerCase().includes(term) ||
         student.phone.includes(term) ||
         student.father_phone?.includes(term);
       
-      // Filter by branch
       const matchesBranch = selectedBranch === "all" || student.branch === selectedBranch;
-      
-      // Filter by shift
       const matchesShift = selectedShift === "all" || student.shift === selectedShift;
       
       return matchesSearch && matchesBranch && matchesShift;
     });
   }, [studentsList, searchTerm, selectedBranch, selectedShift]);
 
-  // Generate WhatsApp URL with error handling
-  const generateWhatsAppUrl = useCallback((student: Student): string => {
-    try {
-      let phoneNumber = student.phone.replace(/[^0-9]/g, '');
-      if (phoneNumber.length === 10) phoneNumber = '91' + phoneNumber;
-
-      let message: string;
-      if (student.fees_due > 0) {
-        const amountDue = formatCurrency(student.fees_due);
-        message = `Hi ${student.name}, this is a friendly reminder from the mess management. Your fee of ${amountDue} is pending. Please pay at your earliest convenience. Thank you!`;
-      } else {
-        message = `Hi ${student.name}, this is a message from the MAA BHAGVATI MESS.`;
-      }
-      
-      return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-    } catch (err) {
-      console.error("Error generating WhatsApp URL:", err);
-      return '#';
-    }
-  }, []);
-
-  // Handle WhatsApp click with error handling
+  // Handle WhatsApp click
   const handleWhatsAppClick = useCallback((e: React.MouseEvent, student: Student) => {
     e.stopPropagation();
+    
+    if (!student.phone || student.phone === 'N/A') {
+      toast.error("Phone number not available");
+      return;
+    }
+
     try {
-      const url = generateWhatsAppUrl(student);
-      if (url !== '#') {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
-        toast.error("Unable to open WhatsApp");
-      }
+      const pendingAmount = studentPendingAmounts.get(student.id) || 0;
+      const daysLeft = student.due_date ? getDaysUntilDue(student.due_date) : 0;
+      const daysOverdue = Math.max(0, -daysLeft);
+      
+      const url = getWhatsAppUrl(student, pendingAmount, daysOverdue);
+      window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       console.error("Error opening WhatsApp:", err);
       toast.error("Failed to open WhatsApp");
     }
-  }, [generateWhatsAppUrl]);
+  }, [studentPendingAmounts]);
 
   // Handle image preview
   const handleImagePreview = useCallback((e: React.MouseEvent, photoUrl?: string) => {
@@ -229,12 +241,10 @@ const Profiles = () => {
     setSelectedShift("all");
   }, []);
 
-  // Loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="ml-4 text-muted-foreground">Loading Students...</p>
         <p className="ml-4 text-muted-foreground">Loading Students...</p>
       </div>
     );
@@ -242,7 +252,6 @@ const Profiles = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Student Profiles</h1>
@@ -250,15 +259,12 @@ const Profiles = () => {
         </div>
         <Button onClick={() => navigate('/registration')}>
           <Plus className="w-4 h-4 mr-2" /> Add New Student
-          <Plus className="w-4 h-4 mr-2" /> Add New Student
         </Button>
       </div>
 
-      {/* Search and Filters */}
       <Card className="shadow-card bg-gradient-card">
         <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:gap-4">
-            {/* Search Input */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -269,9 +275,7 @@ const Profiles = () => {
               />
             </div>
             
-            {/* Filter Controls */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Branch Filter */}
               <Select value={selectedBranch} onValueChange={setSelectedBranch}>
                 <SelectTrigger className="w-full sm:w-48 h-11">
                   <GraduationCap className="w-4 h-4 mr-2" />
@@ -287,7 +291,6 @@ const Profiles = () => {
                 </SelectContent>
               </Select>
 
-              {/* Shift Filter */}
               <Select value={selectedShift} onValueChange={setSelectedShift}>
                 <SelectTrigger className="w-full sm:w-48 h-11">
                   <Utensils className="w-4 h-4 mr-2" />
@@ -302,7 +305,6 @@ const Profiles = () => {
                 </SelectContent>
               </Select>
 
-              {/* Clear Filters Button */}
               {(searchTerm || selectedBranch !== "all" || selectedShift !== "all") && (
                 <Button
                   variant="outline"
@@ -318,25 +320,20 @@ const Profiles = () => {
         </CardContent>
       </Card>
 
-      {/* Results Count */}
       <p className="text-sm text-muted-foreground">
         Showing {filteredStudents.length} of {studentsList.length} students
       </p>
 
-      {/* Student Cards Grid */}
       <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredStudents.map((student) => {
           const daysLeft = student.due_date ? getDaysUntilDue(student.due_date) : null;
+          const pendingAmount = studentPendingAmounts.get(student.id) || 0;
           
           return (
-            <Card 
-              key={student.id} 
-              className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card flex flex-col"
-            >
+            <Card key={student.id} className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card flex flex-col">
               <CardHeader className="p-4 pb-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {/* Profile Picture */}
                     <div 
                       className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-primary cursor-zoom-in" 
                       onClick={(e) => handleImagePreview(e, student.photo_url)}
@@ -357,32 +354,27 @@ const Profiles = () => {
                         </span>
                       )}
                     </div>
-                    {/* Name and Enrollment */}
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-lg font-semibold truncate">{student.name}</CardTitle>
                       <CardDescription className="text-sm">{student.enrollment_number}</CardDescription>
                     </div>
                   </div>
-                  {/* Status Badge */}
                   <div className="flex-shrink-0">{getStatusBadge(student.status)}</div>
                 </div>
               </CardHeader>
               
               <CardContent className="p-4 pt-0 space-y-4 flex-grow flex flex-col justify-between">
                 <div className="space-y-2 text-sm">
-                  {/* Branch */}
                   <div className="flex items-center gap-2">
                     <GraduationCap className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Branch:</span>
                     <span className="font-medium truncate">{student.branch || 'N/A'}</span>
                   </div>
-                  {/* Phone */}
                   <div className="flex items-center gap-2">
                     <Phone className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Phone:</span>
                     <span className="font-medium">{student.phone || 'N/A'}</span>
                   </div>
-                  {/* Joined Date */}
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Joined:</span>
@@ -395,17 +387,15 @@ const Profiles = () => {
                 </div>
 
                 <div className="pt-3 border-t space-y-2">
-                  {/* Amount Due */}
-                  {student.fees_due > 0 && (
+                  {pendingAmount > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Amount Due:</span>
                       <span className="font-semibold text-destructive">
-                        {formatCurrency(student.fees_due)}
+                        {formatCurrency(pendingAmount)}
                       </span>
                     </div>
                   )}
                   
-                  {/* Next Due */}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Next Due:</span>
                     {daysLeft !== null ? (
@@ -417,13 +407,11 @@ const Profiles = () => {
                     )}
                   </div>
                   
-                  {/* Shift Badge */}
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Shift:</span>
                     {getShiftBadge(student.shift) || <span className="text-muted-foreground text-xs">Not Set</span>}
                   </div>
                   
-                  {/* Action Buttons */}
                   <div className="flex gap-2 pt-2">
                     <Button 
                       size="sm" 
@@ -439,6 +427,7 @@ const Profiles = () => {
                       className="h-9 px-3" 
                       onClick={(e) => handleWhatsAppClick(e, student)}
                       title="Send WhatsApp Message"
+                      disabled={!student.phone || student.phone === 'N/A'}
                     >
                       <MessageSquare className="w-4 h-4" />
                     </Button>
@@ -450,7 +439,6 @@ const Profiles = () => {
         })}
       </div>
 
-      {/* Empty State */}
       {!loading && filteredStudents.length === 0 && (
         <Card className="shadow-card bg-gradient-card">
           <CardContent className="py-12 text-center">
@@ -476,7 +464,6 @@ const Profiles = () => {
         </Card>
       )}
       
-      {/* Image Preview Dialog */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-w-[95vw] max-h-[95vh] p-2 sm:p-4">
           {previewImageUrl && (
