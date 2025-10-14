@@ -1,26 +1,30 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
-    <link rel="icon" type="image/x-icon" href="/public/favicon.ico">
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mess Manager - Student Fee Management System</title>
-    <meta name="description" content="Complete mess management solution for educational institutions. Manage student registrations, fee tracking, and automated reminders." />
-    <meta name="author" content="Mess Manager Admin" />
-
-    <meta property="og:title" content="Mess Manager - Student Fee Management System" />
-    <meta property="og:description" content="Complete mess management solution for educational institutions. Manage student registrations, fee tracking, and automated reminders." />
-  
+    
+    <!-- PWA Tags -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#000000">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    
+    <title>MAA BHAGVATI MESS</title>
   </head>
-
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Service Worker Registration -->
     <script>
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/service-worker.js');
-        }
-      </script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => console.log('SW registered'))
+            .catch(error => console.log('SW registration failed'));
+        });
+      }
+    </script>
   </body>
 </html>
