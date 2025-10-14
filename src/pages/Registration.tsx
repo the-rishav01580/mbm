@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,11 +14,13 @@ import {
   CalendarIcon, Camera, Upload, User, Phone, GraduationCap, Save, X, Loader2, AlertCircle, ChevronsUpDown, Utensils
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { validateFile, sanitizeInput } from "@/lib/validation";
 
 const Registration = () => {
+  const { user } = useAuth();
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -52,7 +55,8 @@ const Registration = () => {
   }, [registrationDate]);
 
   const handleInputChange = (field: string, value: string) => {
-    const sanitizedValue = sanitizeInput(value);
+    const fieldType = (field === 'fullName' || field === 'fatherName') ? 'name' : 'default';
+    const sanitizedValue = fieldType === 'name' ? value : sanitizeInput(value);
     setFormData(prev => ({ ...prev, [field]: sanitizedValue }));
   };
 
@@ -98,6 +102,7 @@ const Registration = () => {
         const fileName = `${formData.enrollmentNumber || 'student'}_${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('student-photos').upload(fileName, photoFile);
         if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from('student-photos').getPublicUrl(fileName);
         const { data } = supabase.storage.from('student-photos').getPublicUrl(fileName);
         photoUrl = data.publicUrl;
       }
@@ -158,12 +163,14 @@ const Registration = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 px-4 pb-8 sm:px-0">
+    <div className="max-w-4xl mx-auto space-y-6 px-4 pb-8 sm:px-0">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Student Registration</h1>
         <p className="text-muted-foreground">Add new student details to the system (All fields are optional)</p>
       </div>
 
       <form onSubmit={handleSubmit}>
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <Card className="shadow-card bg-gradient-card">
@@ -225,6 +232,7 @@ const Registration = () => {
                 <CardDescription>Student's academic details (Optional)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="branch">Branch</Label>
@@ -364,13 +372,7 @@ const Registration = () => {
                     </Button>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed rounded-lg p-6 text-center space-y-4">
-                    <Camera className="w-12 h-12 mx-auto text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Upload photo</p>
-                      <p className="text-xs text-muted-foreground">JPG, PNG, WebP up to 5MB</p>
-                    </div>
-                  </div>
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center space-y-4"><Camera className="w-12 h-12 mx-auto text-muted-foreground" /><div><p className="text-sm font-medium">Upload photo</p><p className="text-xs text-muted-foreground">JPG, PNG, WebP up to 5MB</p></div></div>
                 )}
                 <div className="grid grid-cols-1 gap-2">
                   <Button type="button" variant="outline" size="sm" className="relative">

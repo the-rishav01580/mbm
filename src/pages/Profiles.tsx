@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,8 +126,8 @@ const Profiles = () => {
     }
   }, []);
 
-  useEffect(() => {
     setLoading(true);
+    fetchStudents();
     fetchStudents();
 
     // Real-time subscription with error handling
@@ -234,6 +235,7 @@ const Profiles = () => {
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="ml-4 text-muted-foreground">Loading Students...</p>
+        <p className="ml-4 text-muted-foreground">Loading Students...</p>
       </div>
     );
   }
@@ -247,6 +249,7 @@ const Profiles = () => {
           <p className="text-muted-foreground">Manage and view all registered students</p>
         </div>
         <Button onClick={() => navigate('/registration')}>
+          <Plus className="w-4 h-4 mr-2" /> Add New Student
           <Plus className="w-4 h-4 mr-2" /> Add New Student
         </Button>
       </div>
