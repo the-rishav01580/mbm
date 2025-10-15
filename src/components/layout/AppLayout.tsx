@@ -19,19 +19,25 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Top Navigation Bar */}
           <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 shadow-sm">
             <div className="flex items-center gap-4">
-              <SidebarTrigger />
+              {/* Bigger sidebar trigger (mobile bigger, desktop compact) */}
+              <SidebarTrigger
+                aria-label="Toggle sidebar"
+                className="
+                  h-12 w-12 md:h-9 md:w-9
+                  rounded-xl
+                  border border-border
+                  bg-muted/50 hover:bg-muted
+                  transition-colors
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                  [&_svg]:h-6 [&_svg]:w-6
+                "
+              />
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search students..." 
-                  className="pl-10 w-80"
-                />
+                <h1 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground">MBM</h1>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-
-              
               <div className="flex items-center gap-3 pl-4 border-l border-border">
                 <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
                   <span className="text-white text-sm font-medium">A</span>

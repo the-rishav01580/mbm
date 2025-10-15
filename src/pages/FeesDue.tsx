@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Clock, Phone, MessageSquare, DollarSign, AlertTriangle, Calendar, User, Search, Loader2
-} from "lucide-react";
+import { Phone, MessageSquare, DollarSign, Search, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, differenceInDays } from "date-fns";
@@ -91,16 +89,9 @@ const FeesDue = () => {
   const fetchData = useCallback(async () => {
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
-      
-      // Fetch all students and all transactions
       const [studentsRes, transactionsRes] = await Promise.all([
-        supabase
-          .from('students')
-          .select('*')
-          .lte('due_date', today), // Students with due date passed or today
-        supabase
-          .from('transactions')
-          .select('*')
+        supabase.from('students').select('*').lte('due_date', today),
+        supabase.from('transactions').select('*')
       ]);
 
       if (studentsRes.error) throw studentsRes.error;
@@ -122,7 +113,6 @@ const FeesDue = () => {
     setLoading(true);
     fetchData();
 
-    // Real-time subscriptions
     const channel = supabase
       .channel('fees-due-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, fetchData)
@@ -134,11 +124,8 @@ const FeesDue = () => {
     };
   }, [fetchData]);
 
-  // Calculate students with dues
   const studentsDue = useMemo(() => {
-    // Create a map of student pending amounts
     const studentPendingAmounts = new Map<string, number>();
-    
     transactions.forEach(transaction => {
       if (transaction.status === 'pending') {
         const current = studentPendingAmounts.get(transaction.student_id) || 0;
@@ -146,7 +133,6 @@ const FeesDue = () => {
       }
     });
 
-    // Map students to StudentDue format
     const mappedData: StudentDue[] = students
       .map(student => {
         const pendingAmount = studentPendingAmounts.get(student.id) || 0;
@@ -166,7 +152,6 @@ const FeesDue = () => {
           photo: student.photo_url || null,
         };
       })
-      // Filter to only show students with pending amount or overdue
       .filter(s => s.amountDue > 0 || s.daysOverdue > 0);
 
     return mappedData;
@@ -174,11 +159,7 @@ const FeesDue = () => {
 
   const sortedStudents = useMemo(() => {
     return [...studentsDue].sort((a, b) => {
-      // First sort by amount due (higher amounts first)
-      if (a.amountDue !== b.amountDue) {
-        return b.amountDue - a.amountDue;
-      }
-      // Then by days overdue
+      if (a.amountDue !== b.amountDue) return b.amountDue - a.amountDue;
       return b.daysOverdue - a.daysOverdue;
     });
   }, [studentsDue]);
@@ -236,13 +217,13 @@ const FeesDue = () => {
   }, [filteredStudents]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 px-3 sm:px-0">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Fees Due</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Fees Due</h1>
           <p className="text-muted-foreground">Students with pending payments (sorted by amount and urgency)</p>
         </div>
-        <div className="text-right">
+        <div className="sm:text-right">
           <p className="text-sm text-muted-foreground">Total Pending Amount</p>
           <p className="text-2xl font-bold text-destructive">{formatAmount(totalAmountDue)}</p>
         </div>
@@ -250,21 +231,29 @@ const FeesDue = () => {
 
       <Card className="shadow-card bg-gradient-card">
         <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="relative flex-1 max-w-md">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="relative flex-1 max-w-full md:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
                 placeholder="Search by name, enrollment or phone..." 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
-                className="pl-10" 
+                className="pl-10"
               />
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => toast.info("Feature coming soon!")}>
+            {/* Mobile: small buttons, single line */}
+            <div className="flex items-center gap-2 flex-nowrap overflow-x-auto whitespace-nowrap -mx-1 px-1 md:overflow-visible md:mx-0 md:px-0">
+              <Button
+                variant="outline"
+                className="h-8 px-2 text-xs w-auto md:h-10 md:px-4 md:text-sm"
+                onClick={() => toast.info("Feature coming soon!")}
+              >
                 <MessageSquare className="w-4 h-4 mr-2" /> Send All Reminders
               </Button>
-              <Button onClick={() => toast.info("Feature coming soon!")}>
+              <Button
+                className="h-8 px-2 text-xs w-auto md:h-10 md:px-4 md:text-sm"
+                onClick={() => toast.info("Feature coming soon!")}
+              >
                 <DollarSign className="w-4 h-4 mr-2" /> Bulk Payment
               </Button>
             </div>
@@ -281,17 +270,27 @@ const FeesDue = () => {
         )}
 
         {!loading && filteredStudents.map((student, index) => (
-          <Card 
-            key={student.id} 
-            className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card" 
+          <Card
+            key={student.id}
+            className="shadow-card hover:shadow-hover transition-all duration-200 bg-gradient-card"
             style={{ borderLeft: `4px solid ${getUrgencyColor(student.daysOverdue)}` }}
           >
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-4">
-                <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-bold">{index + 1}</span>
+            <CardContent className="pt-6 relative">
+              {/* Mobile: badge on top-right corner */}
+              <div className="md:hidden absolute top-2 right-2 z-10">
+                {getDaysOverdueBadge(student.daysOverdue)}
+              </div>
+
+              <div className="flex flex-col gap-4 md:grid md:grid-cols-[auto_auto_1fr_auto] md:items-center">
+                {/* Serial number (improved on mobile) */}
+                <div className="flex items-center">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white flex items-center justify-center font-extrabold text-[13px] shadow ring-1 ring-white/40 select-none md:w-8 md:h-8 md:rounded-full md:bg-gradient-primary md:font-bold md:text-sm">
+                    {String(index + 1).padStart(2, '0')}
+                  </div>
                 </div>
-                <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center overflow-hidden">
+
+                {/* Avatar: hidden on mobile, shown on desktop */}
+                <div className="hidden md:flex w-12 h-12 bg-muted rounded-full items-center justify-center overflow-hidden">
                   {student.photo ? (
                     <img 
                       src={student.photo} 
@@ -309,58 +308,78 @@ const FeesDue = () => {
                     </span>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
+
+                {/* Details */}
+                <div className="w-full md:flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-lg text-foreground">{student.name}</h3>
-                    {getDaysOverdueBadge(student.daysOverdue)}
+                    <h3 className="font-semibold text-base sm:text-lg text-foreground truncate">{student.name}</h3>
+                    {/* Inline badge only on md+ */}
+                    <div className="hidden md:block">
+                      {getDaysOverdueBadge(student.daysOverdue)}
+                    </div>
                   </div>
-                  <div className="grid gap-x-4 gap-y-1 md:grid-cols-3 text-sm text-muted-foreground">
-                    <div>
+                  <div className="grid gap-x-4 gap-y-1 text-sm text-muted-foreground md:grid-cols-3">
+                    <div className="truncate">
                       <span className="font-medium text-foreground/80">Enrollment:</span> {student.enrollmentNumber}
                     </div>
-                    <div>
+                    {/* Branch removed on mobile */}
+                    <div className="hidden md:block truncate">
                       <span className="font-medium text-foreground/80">Branch:</span> {student.branch}
                     </div>
-                    <div>
-                      <span className="font-medium text-foreground/80">Due Date:</span> {
-                        student.dueDate !== 'N/A' 
-                          ? format(new Date(student.dueDate), 'dd MMM, yyyy')
-                          : 'Not Set'
-                      }
+                    <div className="whitespace-nowrap">
+                      <span className="font-medium text-foreground/80">Due Date:</span>{" "}
+                      {student.dueDate !== 'N/A' 
+                        ? format(new Date(student.dueDate), 'dd MMM, yyyy')
+                        : 'Not Set'}
                     </div>
                   </div>
                 </div>
-                <div className="text-right space-y-3">
+
+                {/* Actions */}
+                <div className="md:text-right space-y-3">
                   <div>
                     <p className="text-sm text-muted-foreground">Amount Due</p>
                     <p className="text-xl font-bold text-destructive">
                       {formatAmount(student.amountDue)}
                     </p>
                   </div>
-                  <div className="flex gap-2 justify-end">
-                    <Button 
-                      size="sm" 
+
+                  {/* Mobile: Call + WhatsApp small and on one line */}
+                  <div className="flex items-center gap-2 md:justify-end">
+                    <Button
+                      size="sm"
                       variant="outline"
+                      className="h-8 px-2 text-xs w-auto md:h-8 md:px-3 md:text-sm"
                       onClick={() => handleCall(student.phone)}
                       disabled={!student.phone || student.phone === 'N/A'}
                     >
-                      <Phone className="w-3 h-3 mr-1" /> Call
+                      <Phone className="w-4 h-4 mr-2" /> Call
                     </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 text-xs w-auto md:h-8 md:px-3 md:text-sm"
                       onClick={() => handleWhatsApp(student)}
                       disabled={!student.phone || student.phone === 'N/A'}
                     >
-                      <MessageSquare className="w-3 h-3 mr-1" /> WhatsApp
+                      <MessageSquare className="w-4 h-4 mr-2" /> WhatsApp
                     </Button>
-                    <Button size="sm" onClick={() => handleRecordPayment(student.id)}>
-                      <DollarSign className="w-3 h-3 mr-1" /> Pay
+                  </div>
+
+                  {/* Keep Pay separate; full-width on mobile, inline on md+ */}
+                  <div className="flex">
+                    <Button
+                      size="sm"
+                      className="h-10 w-full md:h-8 md:w-auto md:ml-auto"
+                      onClick={() => handleRecordPayment(student.id)}
+                    >
+                      <DollarSign className="w-4 h-4 mr-2" /> Pay
                     </Button>
                   </div>
                 </div>
               </div>
-              <div className="mt-4 pl-[64px]">
+
+              <div className="mt-4 md:pl-[64px]">
                 <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                   <span>Urgency Level</span>
                   <span>{student.daysOverdue} days overdue</span>

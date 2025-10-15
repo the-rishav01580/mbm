@@ -3,26 +3,72 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     
     <!-- PWA Tags -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#000000">
     <link rel="apple-touch-icon" href="/icon-192.png">
+
+    <!-- Mobile zoom fixes -->
+    <style>
+      /* Prevent unexpected text scaling */
+      html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+      /* Prevent input-focus auto-zoom on mobile */
+      @media (max-width: 768px) {
+        input, select, textarea { font-size: 16px; }
+      }
+    </style>
     
     <title>MAA BHAGVATI MESS</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Auto-zoom + restore-scale fixes (mobile only) -->
+    <script>
+      (function () {
+        var isMobile = window.matchMedia("(max-width: 767px)").matches;
+
+        // Remove autofocus before app mounts and blur any pre-focused input
+        document.addEventListener("DOMContentLoaded", function () {
+          if (!isMobile) return;
+          document.querySelectorAll("[autofocus]").forEach(function (el) {
+            el.removeAttribute("autofocus");
+          });
+          setTimeout(function () {
+            var ae = document.activeElement;
+            var isEditable = ae && (
+              ae.tagName === "INPUT" ||
+              ae.tagName === "TEXTAREA" ||
+              (ae.isContentEditable === true)
+            );
+            if (isEditable && ae.blur) ae.blur();
+          }, 0);
+        });
+
+        // If page restores with non-1 scale (bfcache), normalize it
+        window.addEventListener("pageshow", function () {
+          if (!isMobile) return;
+          if (window.visualViewport && visualViewport.scale && visualViewport.scale !== 1) {
+            var meta = document.querySelector('meta[name="viewport"]');
+            if (meta) {
+              meta.setAttribute("content", "width=device-width, initial-scale=1, viewport-fit=cover");
+            }
+          }
+        }, { passive: true });
+      })();
+    </script>
     
     <!-- Service Worker Registration -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => console.log('SW registered'))
-            .catch(error => console.log('SW registration failed'));
+            .then(() => console.log('SW registered'))
+            .catch(() => console.log('SW registration failed'));
         });
       }
     </script>
