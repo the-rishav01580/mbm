@@ -78,7 +78,7 @@ export const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl text-center">Mess Management System</CardTitle>
-          <CardDescription className="text-center">Admin Access</CardDescription>
+          <CardDescription className="text-center">Admin Access - id:admin@gmail.com password:admin@123</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin">
