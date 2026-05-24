@@ -10,6 +10,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Supabase URL and Anon Key must be defined in your .env.local file");
 }
 
+// Small runtime check to help debug network errors (won't log keys).
+try {
+  // Log presence (not the full key) to avoid leaking secrets in console.
+  // Use debug so it can be filtered in development only.
+  // eslint-disable-next-line no-console
+  console.debug('Supabase client init — URL present:', !!supabaseUrl, 'Anon key present:', !!supabaseAnonKey);
+} catch (e) {
+  // ignore logging errors
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 
